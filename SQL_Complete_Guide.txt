@@ -1,0 +1,1298 @@
+================================================================================
+             COMPLETE SQL SERVER 2025 GUIDE - ALL TOPICS EXPLAINED
+                     Simple Explanations + Coding Examples
+================================================================================
+
+This guide covers all 102 topics in order, with a simple explanation and a
+working T-SQL code example for each. Practice each example in SQL Server
+Management Studio (SSMS) using the AdventureWorks sample database where noted.
+
+================================================================================
+SECTION 1: GETTING STARTED
+================================================================================
+
+--------------------------------------------------------------------------------
+1. SQL INTRODUCTION
+--------------------------------------------------------------------------------
+SQL (Structured Query Language) is the standard language used to talk to
+relational databases. You use it to create databases/tables, insert data,
+retrieve data, update data, and delete data.
+
+Example (just to see SQL Server version):
+    SELECT @@VERSION;
+
+--------------------------------------------------------------------------------
+HISTORY OF SQL
+--------------------------------------------------------------------------------
+SQL was developed in the 1970s by IBM (originally called SEQUEL). It became an
+ANSI standard in 1986. Microsoft SQL Server is Microsoft's implementation,
+using a dialect called T-SQL (Transact-SQL) which adds extra features on top
+of standard SQL.
+
+--------------------------------------------------------------------------------
+2. INSTALL SQL SERVER 2025
+--------------------------------------------------------------------------------
+Download SQL Server 2025 (Developer/Express edition is free) from Microsoft's
+website, run the installer, choose "Basic" or "Custom" install, and also
+install SQL Server Management Studio (SSMS) to write and run queries visually.
+
+There's no "code example" for installation — it's a GUI wizard. After install,
+open SSMS and connect to your local server (usually "localhost" or
+"(local)\SQLEXPRESS").
+
+--------------------------------------------------------------------------------
+3. CREATE AND DROP DATABASE
+--------------------------------------------------------------------------------
+A database is a container that holds your tables, views, and other objects.
+
+Example:
+    -- Create a database
+    CREATE DATABASE SchoolDB;
+    GO
+
+    -- Use it
+    USE SchoolDB;
+    GO
+
+    -- Drop (delete) it
+    DROP DATABASE SchoolDB;
+
+--------------------------------------------------------------------------------
+SQL SERVER HIERARCHY
+--------------------------------------------------------------------------------
+SQL Server structure, from top to bottom:
+    Server (Instance) -> Database -> Schema -> Table -> Columns/Rows
+
+Example: MyServer -> SchoolDB -> dbo -> Students -> (Name, Age columns)
+
+--------------------------------------------------------------------------------
+4. SYSTEM DATABASES
+--------------------------------------------------------------------------------
+SQL Server creates 4 built-in databases automatically:
+- master: stores system-level info about all databases on the server
+- model: template used whenever you create a new database
+- msdb: used by SQL Server Agent for scheduling jobs/alerts
+- tempdb: temporary workspace, cleared every time SQL Server restarts
+
+Example (see all databases):
+    SELECT name FROM sys.databases;
+
+--------------------------------------------------------------------------------
+5. CREATE AND DROP TABLE
+--------------------------------------------------------------------------------
+A table stores your actual data in rows and columns.
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT,
+        Name VARCHAR(50),
+        Age INT
+    );
+
+    DROP TABLE Students;
+
+--------------------------------------------------------------------------------
+6. INSERT DATA IN TABLE
+--------------------------------------------------------------------------------
+INSERT INTO adds new rows of data into a table.
+
+Example:
+    INSERT INTO Students (StudentID, Name, Age)
+    VALUES (1, 'Amit', 20);
+
+    -- Insert multiple rows at once
+    INSERT INTO Students (StudentID, Name, Age)
+    VALUES (2, 'Riya', 22), (3, 'Karan', 21);
+
+--------------------------------------------------------------------------------
+7. SELECT
+--------------------------------------------------------------------------------
+SELECT retrieves data from a table.
+
+Example:
+    SELECT * FROM Students;           -- all columns
+    SELECT Name, Age FROM Students;   -- specific columns
+
+--------------------------------------------------------------------------------
+8. INSTALL ADVENTUREWORKS SAMPLE DB
+--------------------------------------------------------------------------------
+AdventureWorks is Microsoft's free sample database, used for practicing
+real-world queries. Download the .bak file from Microsoft's GitHub, then in
+SSMS: right-click Databases -> Restore Database -> Device -> select the .bak
+file -> OK.
+
+Example (after restoring, test it):
+    USE AdventureWorks2022;
+    SELECT TOP 10 * FROM Person.Person;
+
+--------------------------------------------------------------------------------
+9. GET UNIQUE VALUES
+--------------------------------------------------------------------------------
+DISTINCT removes duplicate rows from your results.
+
+Example:
+    SELECT DISTINCT City FROM Person.Address;
+
+--------------------------------------------------------------------------------
+10. SORT DATA
+--------------------------------------------------------------------------------
+ORDER BY sorts your results by one or more columns.
+
+Example:
+    SELECT Name, Age FROM Students
+    ORDER BY Age DESC;   -- ASC = ascending (default), DESC = descending
+
+--------------------------------------------------------------------------------
+11. COMMENTS
+--------------------------------------------------------------------------------
+Comments are notes in your code that SQL ignores when running.
+
+Example:
+    -- This is a single-line comment
+    SELECT * FROM Students;  -- inline comment
+
+    /* This is a
+       multi-line comment */
+
+--------------------------------------------------------------------------------
+12. FILTER DATA
+--------------------------------------------------------------------------------
+WHERE filters rows based on a condition.
+
+Example:
+    SELECT * FROM Students WHERE Age > 20;
+    SELECT * FROM Students WHERE Age >= 18 AND Age <= 25;
+    SELECT * FROM Students WHERE Name = 'Amit' OR Name = 'Riya';
+
+--------------------------------------------------------------------------------
+13. FILTER WITH WILDCARD CHARACTERS
+--------------------------------------------------------------------------------
+LIKE searches for a pattern using wildcards: % (any characters), _ (one
+character).
+
+Example:
+    SELECT * FROM Students WHERE Name LIKE 'A%';    -- starts with A
+    SELECT * FROM Students WHERE Name LIKE '%n';     -- ends with n
+    SELECT * FROM Students WHERE Name LIKE '%mi%';   -- contains "mi"
+    SELECT * FROM Students WHERE Name LIKE '_iya';   -- 4 letters, ends "iya"
+
+--------------------------------------------------------------------------------
+14. AGGREGATE FUNCTIONS
+--------------------------------------------------------------------------------
+These functions perform a calculation on a set of values and return one value.
+
+Example:
+    SELECT COUNT(*) FROM Students;         -- number of rows
+    SELECT AVG(Age) FROM Students;         -- average
+    SELECT SUM(Age) FROM Students;         -- total
+    SELECT MIN(Age) FROM Students;         -- smallest
+    SELECT MAX(Age) FROM Students;         -- largest
+
+--------------------------------------------------------------------------------
+15. GROUPING ROWS
+--------------------------------------------------------------------------------
+GROUP BY groups rows that share a value so you can run aggregate functions per
+group.
+
+Example:
+    SELECT Age, COUNT(*) AS TotalStudents
+    FROM Students
+    GROUP BY Age;
+
+================================================================================
+SECTION 2: TABLES, CONSTRAINTS & MODIFYING DATA
+================================================================================
+
+--------------------------------------------------------------------------------
+16. SELECT..INTO
+--------------------------------------------------------------------------------
+SELECT INTO creates a new table and copies data into it, in one step.
+
+Example:
+    SELECT * INTO Students_Backup
+    FROM Students;
+
+--------------------------------------------------------------------------------
+17. CREATE TABLE WITH PRIMARY KEY
+--------------------------------------------------------------------------------
+A PRIMARY KEY uniquely identifies each row; it cannot be NULL or duplicated.
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        Name VARCHAR(50)
+    );
+
+--------------------------------------------------------------------------------
+18. CREATE TABLE WITH NOT NULL CONSTRAINT
+--------------------------------------------------------------------------------
+NOT NULL forces a column to always have a value (no blanks allowed).
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        Name VARCHAR(50) NOT NULL
+    );
+
+--------------------------------------------------------------------------------
+19. CREATE TABLE WITH UNIQUE CONSTRAINT
+--------------------------------------------------------------------------------
+UNIQUE ensures all values in a column are different (but unlike primary key,
+it allows one NULL).
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        Email VARCHAR(100) UNIQUE
+    );
+
+--------------------------------------------------------------------------------
+20. CREATE TABLE WITH CHECK CONSTRAINT
+--------------------------------------------------------------------------------
+CHECK enforces a rule/condition on the values allowed in a column.
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        Age INT CHECK (Age >= 18)
+    );
+
+--------------------------------------------------------------------------------
+21. CREATE TABLE WITH DEFAULT CONSTRAINT
+--------------------------------------------------------------------------------
+DEFAULT sets an automatic value for a column if none is given during insert.
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        Country VARCHAR(50) DEFAULT 'India'
+    );
+
+    INSERT INTO Students (StudentID) VALUES (1);  -- Country = 'India'
+
+--------------------------------------------------------------------------------
+22. CREATE TABLE WITH AUTO INCREMENT
+--------------------------------------------------------------------------------
+IDENTITY automatically generates a unique number for each new row (like
+auto-increment in other databases).
+
+Example:
+    CREATE TABLE Students (
+        StudentID INT IDENTITY(1,1) PRIMARY KEY,  -- starts at 1, increases by 1
+        Name VARCHAR(50)
+    );
+
+    INSERT INTO Students (Name) VALUES ('Amit');  -- StudentID auto = 1
+
+--------------------------------------------------------------------------------
+23. UPDATE ROWS IN TABLE
+--------------------------------------------------------------------------------
+UPDATE changes existing data in a table. Always use WHERE, or it updates every
+row!
+
+Example:
+    UPDATE Students
+    SET Age = 23
+    WHERE StudentID = 1;
+
+--------------------------------------------------------------------------------
+24. DELETE ROWS FROM TABLE
+--------------------------------------------------------------------------------
+DELETE removes rows from a table. Always use WHERE, or it deletes everything.
+
+Example:
+    DELETE FROM Students
+    WHERE StudentID = 1;
+
+================================================================================
+SECTION 3: STRING, DATE & DATA TYPE FUNCTIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+25. STRING FUNCTIONS - PART 1
+--------------------------------------------------------------------------------
+Common string functions manipulate text.
+
+Example:
+    SELECT UPPER('amit');           -- AMIT
+    SELECT LOWER('AMIT');           -- amit
+    SELECT LEN('Amit');             -- 4
+    SELECT LTRIM('  Amit');         -- removes left spaces
+    SELECT RTRIM('Amit  ');         -- removes right spaces
+    SELECT SUBSTRING('Amit Kumar', 1, 4);  -- Amit
+
+--------------------------------------------------------------------------------
+26. STRING FUNCTIONS - PART 2
+--------------------------------------------------------------------------------
+More string functions.
+
+Example:
+    SELECT REPLACE('Amit Kumar', 'Kumar', 'Sharma'); -- Amit Sharma
+    SELECT CONCAT('Amit', ' ', 'Kumar');              -- Amit Kumar
+    SELECT CHARINDEX('K', 'Amit Kumar');              -- position of 'K'
+    SELECT REVERSE('Amit');                           -- timA
+
+--------------------------------------------------------------------------------
+27. SCENARIO - COMBINE NAMES
+--------------------------------------------------------------------------------
+Real-world example: combining FirstName and LastName columns into one.
+
+Example:
+    SELECT FirstName + ' ' + LastName AS FullName
+    FROM Person.Person;
+
+    -- Or using CONCAT (handles NULLs better)
+    SELECT CONCAT(FirstName, ' ', LastName) AS FullName
+    FROM Person.Person;
+
+--------------------------------------------------------------------------------
+28. EXTRACT NAMES
+--------------------------------------------------------------------------------
+Splitting a full name into first/last name using string functions.
+
+Example:
+    SELECT
+        FullName,
+        LEFT(FullName, CHARINDEX(' ', FullName) - 1) AS FirstName,
+        SUBSTRING(FullName, CHARINDEX(' ', FullName) + 1, LEN(FullName)) AS LastName
+    FROM (SELECT 'Amit Kumar' AS FullName) AS T;
+
+--------------------------------------------------------------------------------
+29-31. DATE/TIME FUNCTIONS - PART 1, 2, 3
+--------------------------------------------------------------------------------
+Functions for working with dates and times.
+
+Example:
+    SELECT GETDATE();                          -- current date & time
+    SELECT YEAR(GETDATE());                    -- current year
+    SELECT MONTH(GETDATE());                   -- current month
+    SELECT DAY(GETDATE());                     -- current day
+    SELECT DATEADD(DAY, 10, GETDATE());        -- add 10 days
+    SELECT DATEDIFF(DAY, '2026-01-01', GETDATE()); -- days between dates
+    SELECT FORMAT(GETDATE(), 'dd-MM-yyyy');    -- formatted date
+    SELECT DATENAME(WEEKDAY, GETDATE());       -- e.g. "Saturday"
+
+--------------------------------------------------------------------------------
+32. DATA TYPES - PART 1 - INTEGERS
+--------------------------------------------------------------------------------
+Integer types store whole numbers, differing by storage size and range.
+    TINYINT   -> 0 to 255            (1 byte)
+    SMALLINT  -> -32,768 to 32,767   (2 bytes)
+    INT       -> ~ -2 billion to 2 billion (4 bytes)
+    BIGINT    -> huge range          (8 bytes)
+
+Example:
+    CREATE TABLE Numbers (SmallNum TINYINT, BigNum BIGINT);
+
+--------------------------------------------------------------------------------
+33. DATA TYPES - PART 2 - APPROXIMATE NUMERIC
+--------------------------------------------------------------------------------
+FLOAT and REAL store decimal numbers approximately (fast but can have tiny
+rounding errors) — use DECIMAL/NUMERIC instead for exact money values.
+
+Example:
+    CREATE TABLE Measurements (Value FLOAT);
+    INSERT INTO Measurements VALUES (3.14159);
+
+--------------------------------------------------------------------------------
+34. DATA TYPES - PART 3 - DATETIME
+--------------------------------------------------------------------------------
+Types for storing dates/times: DATE, TIME, DATETIME, DATETIME2, SMALLDATETIME.
+
+Example:
+    CREATE TABLE Events (EventDate DATE, EventTime TIME, CreatedAt DATETIME2);
+
+--------------------------------------------------------------------------------
+35. DATA TYPES - PART 4 - STRINGS
+--------------------------------------------------------------------------------
+    CHAR(n)     -> fixed length
+    VARCHAR(n)  -> variable length (most common)
+    NVARCHAR(n) -> variable length, supports Unicode/multi-language text
+    TEXT        -> large text (legacy, avoid; use VARCHAR(MAX) instead)
+
+Example:
+    CREATE TABLE Students (Name VARCHAR(50), Bio NVARCHAR(MAX));
+
+--------------------------------------------------------------------------------
+36. UNIQUEIDENTIFIER
+--------------------------------------------------------------------------------
+Stores a GUID (Globally Unique Identifier) - a 128-bit value guaranteed to be
+unique, often used as a primary key across distributed systems.
+
+Example:
+    CREATE TABLE Orders (
+        OrderID UNIQUEIDENTIFIER DEFAULT NEWID() PRIMARY KEY,
+        Product VARCHAR(50)
+    );
+
+--------------------------------------------------------------------------------
+37. DATA TYPES - PART 6 - BIT
+--------------------------------------------------------------------------------
+BIT stores true/false (1 or 0) values, like a boolean.
+
+Example:
+    CREATE TABLE Students (Name VARCHAR(50), IsActive BIT DEFAULT 1);
+
+--------------------------------------------------------------------------------
+38. DATA TYPE CONVERSION
+--------------------------------------------------------------------------------
+CAST and CONVERT change a value from one data type to another.
+
+Example:
+    SELECT CAST('123' AS INT);
+    SELECT CONVERT(INT, '123');
+    SELECT CAST(GETDATE() AS DATE);
+    SELECT CONVERT(VARCHAR, GETDATE(), 103);  -- dd/mm/yyyy format
+
+================================================================================
+SECTION 4: JOINS & SET OPERATIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+39. JOINS PART 1 - INTRODUCTION TO JOINS
+--------------------------------------------------------------------------------
+A JOIN combines rows from two or more tables based on a related column
+(usually a foreign key matching a primary key).
+
+Example setup:
+    CREATE TABLE Students (StudentID INT PRIMARY KEY, Name VARCHAR(50), DeptID INT);
+    CREATE TABLE Departments (DeptID INT PRIMARY KEY, DeptName VARCHAR(50));
+
+--------------------------------------------------------------------------------
+40. JOINS PART 2 - USING JOINS (INNER JOIN)
+--------------------------------------------------------------------------------
+INNER JOIN returns only rows that match in both tables.
+
+Example:
+    SELECT S.Name, D.DeptName
+    FROM Students S
+    INNER JOIN Departments D ON S.DeptID = D.DeptID;
+
+--------------------------------------------------------------------------------
+41. JOINS PART 3 - JOIN 3 TABLES
+--------------------------------------------------------------------------------
+You can chain multiple JOINs to combine more than two tables.
+
+Example:
+    SELECT S.Name, D.DeptName, C.CourseName
+    FROM Students S
+    INNER JOIN Departments D ON S.DeptID = D.DeptID
+    INNER JOIN Courses C ON S.CourseID = C.CourseID;
+
+--------------------------------------------------------------------------------
+42. JOINS PART 4 - USING EXPRESSIONS
+--------------------------------------------------------------------------------
+Join conditions can include expressions, not just simple column matches.
+
+Example:
+    SELECT S.Name, D.DeptName
+    FROM Students S
+    INNER JOIN Departments D ON S.DeptID = D.DeptID AND D.DeptID > 1;
+
+--------------------------------------------------------------------------------
+43. JOINS PART 5 - OUTER JOINS
+--------------------------------------------------------------------------------
+- LEFT JOIN: all rows from left table + matches from right (NULL if no match)
+- RIGHT JOIN: all rows from right table + matches from left
+- FULL OUTER JOIN: all rows from both, matched where possible
+
+Example:
+    SELECT S.Name, D.DeptName
+    FROM Students S
+    LEFT JOIN Departments D ON S.DeptID = D.DeptID;
+
+--------------------------------------------------------------------------------
+44. SCENARIO - JOINS PART 6 - SELF JOIN
+--------------------------------------------------------------------------------
+A SELF JOIN joins a table to itself — useful for comparing rows within the
+same table, like employees and their managers.
+
+Example:
+    SELECT E.Name AS Employee, M.Name AS Manager
+    FROM Employees E
+    LEFT JOIN Employees M ON E.ManagerID = M.EmployeeID;
+
+--------------------------------------------------------------------------------
+45. FACT AND DIMENSION TABLES
+--------------------------------------------------------------------------------
+Used in data warehousing (star schema):
+- Fact table: stores measurable events/numbers (e.g. Sales amount, Quantity)
+- Dimension table: stores descriptive context (e.g. Product, Customer, Date)
+
+Example:
+    -- Dimension tables
+    CREATE TABLE DimProduct (ProductID INT PRIMARY KEY, ProductName VARCHAR(50));
+    CREATE TABLE DimCustomer (CustomerID INT PRIMARY KEY, CustomerName VARCHAR(50));
+
+    -- Fact table references dimensions
+    CREATE TABLE FactSales (
+        SaleID INT PRIMARY KEY,
+        ProductID INT,
+        CustomerID INT,
+        Amount DECIMAL(10,2)
+    );
+
+--------------------------------------------------------------------------------
+46. IIF FUNCTION
+--------------------------------------------------------------------------------
+IIF is a shorthand IF-THEN-ELSE function: IIF(condition, true_value, false_value)
+
+Example:
+    SELECT Name, Age, IIF(Age >= 18, 'Adult', 'Minor') AS Category
+    FROM Students;
+
+--------------------------------------------------------------------------------
+47. CASE
+--------------------------------------------------------------------------------
+CASE lets you write multi-branch IF/ELSE logic in a query.
+
+Example:
+    SELECT Name, Age,
+        CASE
+            WHEN Age < 13 THEN 'Child'
+            WHEN Age BETWEEN 13 AND 19 THEN 'Teenager'
+            ELSE 'Adult'
+        END AS Category
+    FROM Students;
+
+--------------------------------------------------------------------------------
+48. IIF & CASE MULTIPLE CONDITIONS
+--------------------------------------------------------------------------------
+Both can nest or combine multiple conditions using AND/OR.
+
+Example:
+    SELECT Name,
+        CASE
+            WHEN Age >= 18 AND Age < 60 THEN 'Working Age'
+            WHEN Age >= 60 THEN 'Senior'
+            ELSE 'Minor'
+        END AS Category
+    FROM Students;
+
+--------------------------------------------------------------------------------
+49. SCENARIO - CUSTOM SORTING
+--------------------------------------------------------------------------------
+Use CASE inside ORDER BY to sort rows in a custom (non-alphabetical) order.
+
+Example:
+    SELECT Name, Category
+    FROM Students
+    ORDER BY
+        CASE Category
+            WHEN 'Gold' THEN 1
+            WHEN 'Silver' THEN 2
+            WHEN 'Bronze' THEN 3
+        END;
+
+--------------------------------------------------------------------------------
+50. UNION & UNION ALL
+--------------------------------------------------------------------------------
+Both combine results from two SELECT queries (same column count/types).
+- UNION removes duplicate rows
+- UNION ALL keeps all rows (faster, no duplicate check)
+
+Example:
+    SELECT Name FROM Students
+    UNION
+    SELECT Name FROM Teachers;
+
+    SELECT Name FROM Students
+    UNION ALL
+    SELECT Name FROM Teachers;
+
+--------------------------------------------------------------------------------
+51. INTERSECT
+--------------------------------------------------------------------------------
+Returns only rows that exist in BOTH result sets.
+
+Example:
+    SELECT Name FROM Students
+    INTERSECT
+    SELECT Name FROM Teachers;
+
+--------------------------------------------------------------------------------
+52. EXCEPT
+--------------------------------------------------------------------------------
+Returns rows from the first query that do NOT appear in the second query.
+
+Example:
+    SELECT Name FROM Students
+    EXCEPT
+    SELECT Name FROM Teachers;
+
+--------------------------------------------------------------------------------
+53. FOREIGN KEY CONSTRAINT
+--------------------------------------------------------------------------------
+A FOREIGN KEY links a column in one table to the primary key in another,
+enforcing referential integrity (you can't insert a value that doesn't exist
+in the parent table).
+
+Example:
+    CREATE TABLE Departments (DeptID INT PRIMARY KEY, DeptName VARCHAR(50));
+
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        Name VARCHAR(50),
+        DeptID INT,
+        FOREIGN KEY (DeptID) REFERENCES Departments(DeptID)
+    );
+
+================================================================================
+SECTION 5: SUBQUERIES & AGGREGATION
+================================================================================
+
+--------------------------------------------------------------------------------
+54. SUBQUERY - PART 1
+--------------------------------------------------------------------------------
+A subquery is a query nested inside another query, often inside WHERE.
+
+Example:
+    SELECT Name FROM Students
+    WHERE DeptID = (SELECT DeptID FROM Departments WHERE DeptName = 'CS');
+
+--------------------------------------------------------------------------------
+55. SUBQUERY - PART 2 - IN & NOT IN
+--------------------------------------------------------------------------------
+IN checks if a value matches any value in a list/subquery result. NOT IN is
+the opposite.
+
+Example:
+    SELECT Name FROM Students
+    WHERE DeptID IN (SELECT DeptID FROM Departments WHERE Region = 'North');
+
+    SELECT Name FROM Students
+    WHERE DeptID NOT IN (SELECT DeptID FROM Departments WHERE Region = 'North');
+
+--------------------------------------------------------------------------------
+56. SUBQUERY - PART 3 - UPDATE
+--------------------------------------------------------------------------------
+Subqueries can be used inside UPDATE statements too.
+
+Example:
+    UPDATE Students
+    SET DeptID = (SELECT DeptID FROM Departments WHERE DeptName = 'CS')
+    WHERE StudentID = 1;
+
+--------------------------------------------------------------------------------
+57. SUBQUERY - PART 4 - DERIVED TABLE
+--------------------------------------------------------------------------------
+A derived table is a subquery used in the FROM clause, treated like a
+temporary table.
+
+Example:
+    SELECT DeptID, AVG(Age) AS AvgAge
+    FROM (SELECT DeptID, Age FROM Students WHERE Age > 18) AS DT
+    GROUP BY DeptID;
+
+--------------------------------------------------------------------------------
+58. SUBQUERY - PART 5 - EXISTS, CORRELATED SUBQUERY
+--------------------------------------------------------------------------------
+EXISTS checks if a subquery returns any rows (true/false). A correlated
+subquery references a column from the outer query, so it runs once per row.
+
+Example:
+    SELECT Name FROM Students S
+    WHERE EXISTS (
+        SELECT 1 FROM Departments D WHERE D.DeptID = S.DeptID AND D.Region = 'North'
+    );
+
+--------------------------------------------------------------------------------
+59. SCENARIO - SUBQUERY PART 6 - GET CONTRIBUTION YEARWISE
+--------------------------------------------------------------------------------
+Real-world scenario: calculating each row's percentage contribution to a
+yearly total using a correlated subquery.
+
+Example:
+    SELECT
+        OrderYear,
+        Amount,
+        Amount * 100.0 / (
+            SELECT SUM(Amount) FROM Sales S2 WHERE S2.OrderYear = S1.OrderYear
+        ) AS ContributionPercent
+    FROM Sales S1;
+
+--------------------------------------------------------------------------------
+60. HAVING CLAUSE
+--------------------------------------------------------------------------------
+HAVING filters groups AFTER GROUP BY (WHERE filters rows BEFORE grouping).
+
+Example:
+    SELECT DeptID, COUNT(*) AS TotalStudents
+    FROM Students
+    GROUP BY DeptID
+    HAVING COUNT(*) > 5;
+
+--------------------------------------------------------------------------------
+61. TOP CLAUSE
+--------------------------------------------------------------------------------
+TOP limits the number of rows returned.
+
+Example:
+    SELECT TOP 5 * FROM Students ORDER BY Age DESC;
+    SELECT TOP 10 PERCENT * FROM Students;
+
+--------------------------------------------------------------------------------
+62. SCENARIO - GET TOP & BOTTOM PRODUCTS
+--------------------------------------------------------------------------------
+Combine TOP with ORDER BY to find best/worst performers.
+
+Example:
+    -- Top 5 selling products
+    SELECT TOP 5 ProductID, SUM(Amount) AS TotalSales
+    FROM Sales GROUP BY ProductID ORDER BY TotalSales DESC;
+
+    -- Bottom 5 selling products
+    SELECT TOP 5 ProductID, SUM(Amount) AS TotalSales
+    FROM Sales GROUP BY ProductID ORDER BY TotalSales ASC;
+
+================================================================================
+SECTION 6: WINDOW FUNCTIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+63. WINDOW FUNCTIONS - PART 1 - ROW_NUMBER
+--------------------------------------------------------------------------------
+Window functions calculate across a set of rows ("window") related to the
+current row, without collapsing rows like GROUP BY does.
+ROW_NUMBER() assigns a unique sequential number to rows.
+
+Example:
+    SELECT Name, DeptID,
+        ROW_NUMBER() OVER (PARTITION BY DeptID ORDER BY Name) AS RowNum
+    FROM Students;
+
+--------------------------------------------------------------------------------
+64. WINDOW FUNCTIONS - PART 2 - RANK & DENSE_RANK
+--------------------------------------------------------------------------------
+RANK() gives the same rank to ties but skips numbers after (1,2,2,4).
+DENSE_RANK() gives the same rank to ties without skipping (1,2,2,3).
+
+Example:
+    SELECT Name, Score,
+        RANK() OVER (ORDER BY Score DESC) AS Rank,
+        DENSE_RANK() OVER (ORDER BY Score DESC) AS DenseRank
+    FROM Students;
+
+--------------------------------------------------------------------------------
+65. WINDOW FUNCTIONS - PART 3 - LAG & LEAD
+--------------------------------------------------------------------------------
+LAG() gets a value from the PREVIOUS row. LEAD() gets a value from the NEXT
+row — useful for comparing a row to the one before/after it (e.g. month-over-
+month change).
+
+Example:
+    SELECT Month, Sales,
+        LAG(Sales) OVER (ORDER BY Month) AS PrevMonthSales,
+        LEAD(Sales) OVER (ORDER BY Month) AS NextMonthSales
+    FROM MonthlySales;
+
+--------------------------------------------------------------------------------
+66. WINDOW FUNCTIONS - PART 4 - FIRST_VALUE & LAST_VALUE
+--------------------------------------------------------------------------------
+FIRST_VALUE() returns the first value in a window. LAST_VALUE() returns the
+last value in a window.
+
+Example:
+    SELECT Name, DeptID, Salary,
+        FIRST_VALUE(Salary) OVER (PARTITION BY DeptID ORDER BY Salary DESC) AS HighestInDept
+    FROM Employees;
+
+================================================================================
+SECTION 7: SCHEMA, ALTER TABLE & MORE QUERY TOOLS
+================================================================================
+
+--------------------------------------------------------------------------------
+67. SQL CLASSIFICATION
+--------------------------------------------------------------------------------
+SQL commands are grouped into categories:
+- DDL (Data Definition Language): CREATE, ALTER, DROP
+- DML (Data Manipulation Language): SELECT, INSERT, UPDATE, DELETE
+- DCL (Data Control Language): GRANT, REVOKE
+- TCL (Transaction Control Language): COMMIT, ROLLBACK
+
+Example:
+    CREATE TABLE Test (ID INT);   -- DDL
+    INSERT INTO Test VALUES (1);  -- DML
+    GRANT SELECT ON Test TO PublicUser; -- DCL
+    COMMIT;                       -- TCL
+
+--------------------------------------------------------------------------------
+68. ALTER TABLE - PART 1 - COLUMNS
+--------------------------------------------------------------------------------
+ALTER TABLE modifies an existing table's structure — add, remove, or change
+columns.
+
+Example:
+    ALTER TABLE Students ADD Email VARCHAR(100);
+    ALTER TABLE Students ALTER COLUMN Email VARCHAR(150);
+    ALTER TABLE Students DROP COLUMN Email;
+
+--------------------------------------------------------------------------------
+69. ALTER TABLE - PART 2 - CONSTRAINTS
+--------------------------------------------------------------------------------
+You can also add or drop constraints after a table already exists.
+
+Example:
+    ALTER TABLE Students ADD CONSTRAINT CHK_Age CHECK (Age >= 18);
+    ALTER TABLE Students DROP CONSTRAINT CHK_Age;
+
+--------------------------------------------------------------------------------
+70. OFFSET
+--------------------------------------------------------------------------------
+OFFSET/FETCH implements pagination — skip a number of rows, then fetch a set
+number of rows.
+
+Example:
+    SELECT * FROM Students
+    ORDER BY StudentID
+    OFFSET 10 ROWS FETCH NEXT 5 ROWS ONLY;   -- skip 10, get next 5
+
+--------------------------------------------------------------------------------
+71. COALESCE FUNCTION
+--------------------------------------------------------------------------------
+COALESCE returns the first non-NULL value from a list — handy for default
+values.
+
+Example:
+    SELECT Name, COALESCE(Phone, Email, 'No Contact Info') AS Contact
+    FROM Students;
+
+--------------------------------------------------------------------------------
+72. MERGE
+--------------------------------------------------------------------------------
+MERGE combines INSERT, UPDATE, and DELETE into one statement — commonly used
+to sync a target table with a source (an "upsert").
+
+Example:
+    MERGE Students AS Target
+    USING StudentsStaging AS Source
+    ON Target.StudentID = Source.StudentID
+    WHEN MATCHED THEN
+        UPDATE SET Target.Name = Source.Name
+    WHEN NOT MATCHED THEN
+        INSERT (StudentID, Name) VALUES (Source.StudentID, Source.Name);
+
+--------------------------------------------------------------------------------
+73. SCHEMA
+--------------------------------------------------------------------------------
+A schema is a logical container/namespace for grouping database objects
+(tables, views, etc.), useful for organizing and securing objects. Default
+schema is "dbo".
+
+Example:
+    CREATE SCHEMA Sales;
+    CREATE TABLE Sales.Orders (OrderID INT PRIMARY KEY);
+    SELECT * FROM Sales.Orders;
+
+--------------------------------------------------------------------------------
+74. GROUP BY WITH ROLLUP
+--------------------------------------------------------------------------------
+ROLLUP adds subtotal and grand-total rows to grouped results (hierarchical
+summary).
+
+Example:
+    SELECT DeptID, COUNT(*) AS Total
+    FROM Students
+    GROUP BY ROLLUP(DeptID);
+    -- adds a final row with grand total across all departments
+
+--------------------------------------------------------------------------------
+75. GROUP BY WITH CUBE
+--------------------------------------------------------------------------------
+CUBE generates subtotals for ALL possible combinations of the grouped
+columns (more comprehensive than ROLLUP).
+
+Example:
+    SELECT DeptID, Gender, COUNT(*) AS Total
+    FROM Students
+    GROUP BY CUBE(DeptID, Gender);
+
+--------------------------------------------------------------------------------
+76. PIVOT
+--------------------------------------------------------------------------------
+PIVOT rotates rows into columns — turning unique values into their own
+columns (like an Excel pivot table).
+
+Example:
+    SELECT * FROM
+    (SELECT DeptID, Gender FROM Students) AS SourceTable
+    PIVOT (
+        COUNT(Gender) FOR Gender IN ([Male], [Female])
+    ) AS PivotTable;
+
+--------------------------------------------------------------------------------
+77. UNPIVOT
+--------------------------------------------------------------------------------
+UNPIVOT does the opposite of PIVOT — turns columns back into rows.
+
+Example:
+    SELECT DeptID, Gender, Total
+    FROM PivotedTable
+    UNPIVOT (
+        Total FOR Gender IN ([Male], [Female])
+    ) AS UnpivotTable;
+
+--------------------------------------------------------------------------------
+78. VIEWS
+--------------------------------------------------------------------------------
+A VIEW is a saved, reusable SELECT query that acts like a virtual table.
+
+Example:
+    CREATE VIEW ActiveStudents AS
+    SELECT Name, Age FROM Students WHERE IsActive = 1;
+
+    SELECT * FROM ActiveStudents;   -- use it just like a table
+
+--------------------------------------------------------------------------------
+79. COMMON TABLE EXPRESSION - PART 1 - INTRODUCTION
+--------------------------------------------------------------------------------
+A CTE (WITH clause) is a temporary named result set you can reference within
+one query — makes complex queries more readable than nested subqueries.
+
+Example:
+    WITH DeptCounts AS (
+        SELECT DeptID, COUNT(*) AS Total
+        FROM Students GROUP BY DeptID
+    )
+    SELECT * FROM DeptCounts WHERE Total > 5;
+
+--------------------------------------------------------------------------------
+80. COMMON TABLE EXPRESSION - PART 2 - MULTIPART
+--------------------------------------------------------------------------------
+You can define multiple CTEs in one query, each separated by a comma.
+
+Example:
+    WITH DeptCounts AS (
+        SELECT DeptID, COUNT(*) AS Total FROM Students GROUP BY DeptID
+    ),
+    HighDepts AS (
+        SELECT DeptID FROM DeptCounts WHERE Total > 5
+    )
+    SELECT * FROM HighDepts;
+
+--------------------------------------------------------------------------------
+81. COMMON TABLE EXPRESSION - PART 3 - RECURSION
+--------------------------------------------------------------------------------
+A recursive CTE references itself, useful for hierarchical data (org charts,
+category trees).
+
+Example:
+    WITH OrgChart AS (
+        SELECT EmployeeID, ManagerID, Name FROM Employees WHERE ManagerID IS NULL
+        UNION ALL
+        SELECT E.EmployeeID, E.ManagerID, E.Name
+        FROM Employees E
+        INNER JOIN OrgChart O ON E.ManagerID = O.EmployeeID
+    )
+    SELECT * FROM OrgChart;
+
+================================================================================
+SECTION 8: PROGRAMMING CONSTRUCTS & STORED PROCEDURES
+================================================================================
+
+--------------------------------------------------------------------------------
+82. VARIABLES
+--------------------------------------------------------------------------------
+Variables store a single value temporarily, declared with DECLARE.
+
+Example:
+    DECLARE @Age INT;
+    SET @Age = 20;
+    SELECT @Age AS MyAge;
+
+    -- Or combined
+    DECLARE @Name VARCHAR(50) = 'Amit';
+    PRINT @Name;
+
+--------------------------------------------------------------------------------
+83. IF..ELSE
+--------------------------------------------------------------------------------
+Conditional logic in T-SQL scripts (not inside a single SELECT — use CASE for
+that).
+
+Example:
+    DECLARE @Age INT = 20;
+    IF @Age >= 18
+        PRINT 'Adult';
+    ELSE
+        PRINT 'Minor';
+
+--------------------------------------------------------------------------------
+84. WHILE LOOP
+--------------------------------------------------------------------------------
+WHILE repeats a block of code as long as a condition is true.
+
+Example:
+    DECLARE @Counter INT = 1;
+    WHILE @Counter <= 5
+    BEGIN
+        PRINT @Counter;
+        SET @Counter = @Counter + 1;
+    END;
+
+--------------------------------------------------------------------------------
+85. TEMP TABLES
+--------------------------------------------------------------------------------
+Temporary tables (#TableName) store data temporarily for the current session
+and are automatically dropped when the session ends.
+
+Example:
+    CREATE TABLE #TempStudents (StudentID INT, Name VARCHAR(50));
+    INSERT INTO #TempStudents VALUES (1, 'Amit');
+    SELECT * FROM #TempStudents;
+    DROP TABLE #TempStudents;
+
+--------------------------------------------------------------------------------
+86. STORED PROCEDURES
+--------------------------------------------------------------------------------
+A stored procedure is a saved, reusable block of T-SQL code that can accept
+parameters — good for encapsulating business logic.
+
+Example:
+    CREATE PROCEDURE GetStudentsByDept
+        @DeptID INT
+    AS
+    BEGIN
+        SELECT Name, Age FROM Students WHERE DeptID = @DeptID;
+    END;
+
+    -- Execute it
+    EXEC GetStudentsByDept @DeptID = 1;
+
+--------------------------------------------------------------------------------
+87. CONVERTING A TABLE TO JSON
+--------------------------------------------------------------------------------
+FOR JSON converts query results directly into JSON format.
+
+Example:
+    SELECT StudentID, Name, Age
+    FROM Students
+    FOR JSON AUTO;
+
+--------------------------------------------------------------------------------
+88. CREATING NESTED JSON OUTPUT
+--------------------------------------------------------------------------------
+You can produce nested JSON (e.g. a student with a list of courses) by
+joining tables and using FOR JSON with PATH mode.
+
+Example:
+    SELECT
+        S.Name,
+        (SELECT C.CourseName FROM Courses C
+         WHERE C.StudentID = S.StudentID FOR JSON PATH) AS Courses
+    FROM Students S
+    FOR JSON PATH;
+
+--------------------------------------------------------------------------------
+89. OUTPUT CLAUSE
+--------------------------------------------------------------------------------
+OUTPUT returns information about the rows affected by an INSERT, UPDATE, or
+DELETE — useful for logging/auditing changes.
+
+Example:
+    UPDATE Students
+    SET Age = Age + 1
+    OUTPUT deleted.Age AS OldAge, inserted.Age AS NewAge
+    WHERE StudentID = 1;
+
+--------------------------------------------------------------------------------
+90. SLOWLY CHANGING DIMENSIONS (SCD)
+--------------------------------------------------------------------------------
+A data warehousing concept for tracking historical changes to dimension data
+over time.
+- Type 1: overwrite old value (no history kept)
+- Type 2: add a new row with start/end dates and a "current" flag (keeps
+  full history)
+- Type 3: add a new column to store the previous value
+
+Example (Type 2 structure):
+    CREATE TABLE DimCustomer (
+        CustomerKey INT PRIMARY KEY,
+        CustomerID INT,
+        Address VARCHAR(100),
+        StartDate DATE,
+        EndDate DATE,
+        IsCurrent BIT
+    );
+    -- When address changes: close old row (set EndDate, IsCurrent=0)
+    -- and insert new row with new address (IsCurrent=1)
+
+================================================================================
+SECTION 9: INDEXES & PERFORMANCE
+================================================================================
+
+--------------------------------------------------------------------------------
+91. INDEXES - PART 1 - CLUSTERED INDEX
+--------------------------------------------------------------------------------
+An index speeds up data retrieval. A CLUSTERED INDEX physically sorts and
+stores table data in order of the index key. Each table can have only ONE
+clustered index (usually the primary key).
+
+Example:
+    CREATE CLUSTERED INDEX IX_Students_Age ON Students(Age);
+
+--------------------------------------------------------------------------------
+92. INDEXES - PART 2 - NONCLUSTERED INDEX
+--------------------------------------------------------------------------------
+A NONCLUSTERED INDEX creates a separate structure with pointers back to the
+actual data — a table can have MANY nonclustered indexes.
+
+Example:
+    CREATE NONCLUSTERED INDEX IX_Students_Name ON Students(Name);
+
+--------------------------------------------------------------------------------
+93. INDEXES - PART 3 - THEORY
+--------------------------------------------------------------------------------
+Indexes work like a book's index — they let SQL Server find rows without
+scanning the whole table. They're stored as B-tree structures. Trade-off:
+indexes speed up SELECT/searches but slow down INSERT/UPDATE/DELETE (since
+the index must also be updated), and they use extra storage.
+
+--------------------------------------------------------------------------------
+94. INDEXES - PART 4 - INDEX SEEK
+--------------------------------------------------------------------------------
+An "Index Seek" (fast, uses the index directly) is what you want to see in an
+execution plan, vs. a "Table Scan" (slow, reads every row).
+
+Example (check the execution plan in SSMS):
+    SET STATISTICS IO ON;
+    SELECT * FROM Students WHERE Age = 20;   -- with index on Age = Index Seek
+
+================================================================================
+SECTION 10: ADVANCED TOPICS
+================================================================================
+
+--------------------------------------------------------------------------------
+95. DELETE AND UPDATE WITH CASCADE
+--------------------------------------------------------------------------------
+ON DELETE CASCADE / ON UPDATE CASCADE automatically deletes/updates related
+child rows when the parent row is deleted/updated.
+
+Example:
+    CREATE TABLE Departments (DeptID INT PRIMARY KEY);
+    CREATE TABLE Students (
+        StudentID INT PRIMARY KEY,
+        DeptID INT,
+        FOREIGN KEY (DeptID) REFERENCES Departments(DeptID)
+            ON DELETE CASCADE ON UPDATE CASCADE
+    );
+    -- Deleting a department automatically deletes its students
+
+--------------------------------------------------------------------------------
+96. STRING_AGG AND STRING_SPLIT FUNCTIONS
+--------------------------------------------------------------------------------
+STRING_AGG combines multiple row values into one string.
+STRING_SPLIT splits one string into multiple rows.
+
+Example:
+    -- Combine
+    SELECT STRING_AGG(Name, ', ') FROM Students;    -- "Amit, Riya, Karan"
+
+    -- Split
+    SELECT value FROM STRING_SPLIT('Amit,Riya,Karan', ',');
+
+--------------------------------------------------------------------------------
+97. CREATING FUNCTIONS
+--------------------------------------------------------------------------------
+User-defined functions (UDFs) are reusable pieces of logic you can call
+within queries, similar to stored procedures but they return a value and can
+be used inside SELECT.
+
+Example:
+    CREATE FUNCTION GetFullName (@FirstName VARCHAR(50), @LastName VARCHAR(50))
+    RETURNS VARCHAR(100)
+    AS
+    BEGIN
+        RETURN @FirstName + ' ' + @LastName;
+    END;
+
+    SELECT dbo.GetFullName('Amit', 'Kumar');
+
+--------------------------------------------------------------------------------
+98. CROSS APPLY AND OUTER APPLY
+--------------------------------------------------------------------------------
+APPLY lets you join a table to a table-valued function or subquery that
+references columns from the left table (something a normal JOIN can't do).
+- CROSS APPLY: like INNER JOIN (only matching rows)
+- OUTER APPLY: like LEFT JOIN (keeps rows even with no match)
+
+Example:
+    SELECT S.Name, C.CourseName
+    FROM Students S
+    CROSS APPLY (
+        SELECT TOP 1 CourseName FROM Courses WHERE StudentID = S.StudentID
+    ) AS C;
+
+--------------------------------------------------------------------------------
+99. QUOTENAME FUNCTION
+--------------------------------------------------------------------------------
+QUOTENAME wraps a string in brackets [ ] to safely use it as a SQL
+identifier — helpful in dynamic SQL to avoid syntax errors/injection.
+
+Example:
+    SELECT QUOTENAME('Order Details');   -- returns [Order Details]
+
+--------------------------------------------------------------------------------
+100. SP_EXECUTESQL
+--------------------------------------------------------------------------------
+sp_executesql runs a dynamically built SQL string, safely, with parameters
+(better than plain EXEC because it supports parameterization and reduces SQL
+injection risk).
+
+Example:
+    DECLARE @SQL NVARCHAR(MAX) = N'SELECT * FROM Students WHERE Age = @Age';
+    EXEC sp_executesql @SQL, N'@Age INT', @Age = 20;
+
+--------------------------------------------------------------------------------
+101. SQL INJECTION
+--------------------------------------------------------------------------------
+SQL Injection is a security attack where malicious input is inserted into a
+query to manipulate or damage a database. It happens when user input is
+directly concatenated into SQL strings instead of using parameters.
+
+Example of VULNERABLE code (don't do this):
+    DECLARE @SQL NVARCHAR(MAX);
+    SET @SQL = 'SELECT * FROM Students WHERE Name = ''' + @UserInput + '''';
+    EXEC(@SQL);
+    -- If @UserInput = ''' OR '1'='1' -- , it returns ALL rows (attack!)
+
+SAFE version (use parameters instead):
+    EXEC sp_executesql
+        N'SELECT * FROM Students WHERE Name = @Name',
+        N'@Name VARCHAR(50)',
+        @Name = @UserInput;
+
+--------------------------------------------------------------------------------
+102. DYNAMIC PIVOT
+--------------------------------------------------------------------------------
+A dynamic PIVOT builds the pivot column list at runtime using dynamic SQL —
+needed when you don't know the column values in advance.
+
+Example:
+    DECLARE @Columns NVARCHAR(MAX), @SQL NVARCHAR(MAX);
+
+    SELECT @Columns = STRING_AGG(QUOTENAME(Gender), ',')
+    FROM (SELECT DISTINCT Gender FROM Students) AS G;
+
+    SET @SQL = N'
+    SELECT * FROM
+    (SELECT DeptID, Gender FROM Students) AS SourceTable
+    PIVOT (COUNT(Gender) FOR Gender IN (' + @Columns + N')) AS PivotTable';
+
+    EXEC sp_executesql @SQL;
+
+================================================================================
+                              END OF GUIDE
+================================================================================
+TIP: Work through this file top to bottom, typing out and running every
+example yourself in SSMS. Don't just read — practice each query against the
+AdventureWorks sample database (or your own test tables) to really learn it.
+
+Suggested practice order:
+1. Sections 1-2 (basics, tables, constraints) — 1 week
+2. Section 3 (functions & data types) — 3-4 days
+3. Section 4-5 (joins, subqueries, aggregation) — 1 week (most important!)
+4. Section 6 (window functions) — 3-4 days (very commonly asked in interviews)
+5. Section 7-8 (views, CTEs, procedures, programming) — 1 week
+6. Section 9-10 (indexes, performance, advanced/security topics) — 1 week
+================================================================================
