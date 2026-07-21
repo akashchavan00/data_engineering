@@ -1,0 +1,93 @@
+Analytics: 
+-Amazon EMR
+-AWS Lake Formation
+-Amazon RedShift
+-Amazon Kinesis
+-AWS Glue 
+-Amazon Managed streaming for apache kafka
+-Amazon Opensearch Services
+-Amazon QuickSight
+-amazon Athena
+
+App Integration:
+-Amazon EventBridge
+-AWS step functions
+-Amazon Appflow
+-Amazon simple notification service (Amazon SNS)
+-Amazon simple queue service (Amazon SQS)
+-Amazon Managed Workflows for Apache Airflow
+
+Cloud financial Management
+-AWS Budgets
+-AWS cost explorer
+
+Compute
+-AWS Batch
+-Amazon elastic Compute Cloud (Amazon EC2)
+-AWS Lambda
+-AWS Serverless Application Repository
+
+containers
+-Amazon ECR 
+-ECS 
+-EKS 
+
+database 
+-Amazon DocumentDB(with mongodb compatibility)
+-Amazon DynamoDB
+-Amazon keyspaces (for apache cassandra)
+-Amazon MemoryDB for Redis 
+-Amazon Neptune
+-Amazon Relational Database Service (Amazon RDS)
+
+Developer tools:
+- AWS CLI 
+- AWS CDK 
+- AWS Codebuild
+- AWS CodeCommit 
+- AWS CodeDeploy
+- AWS CodePipeline
+
+Frontend web:
+- Amazon API Gateway
+
+Machine Learning:
+- Amazon Sagemaker
+
+Management and Governence
+- AWS Cloudformation
+- AWS Cloudtrail
+- Amazon CloudWatch
+- AWS Config
+- Amazon Managed Grafana
+- AWS System Manager
+- AWS Well Architected Tool 
+
+Migration and transfer
+- AWS Application discovery service 
+- AWS Application migration service
+- AWS Database migration service (AWS DMS)
+- AWS Datasync
+- AWS Transfer family
+- AWS Snow Family 
+
+Networking and content delivery:
+- Amazon CloudFront
+- AWS PrivateLink
+- Amazon Route 53
+- Amazon virtual private cloud (Amazon VPC)
+
+Security Identity and Compliance
+- AWS Identity and access Management (IAM)
+- AWS Key management service (AWS KMS)
+- Amazon Macie
+- AWS Secrets manager
+- AWS Shield
+- AWS WAF
+
+Storage:
+
+- AWS Backup 
+- AWS EBS
+- Amazon EFS 
+- Amazon S3
