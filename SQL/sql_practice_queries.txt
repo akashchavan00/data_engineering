@@ -1,0 +1,17 @@
+SELECT *
+FROM titanic
+LIMIT 10;
+
+SELECT AVG(Survived) AS overall_rate
+FROM titanic;
+
+SELECT AVG(Survived) AS women_children_rate
+FROM titanic
+WHERE Sex = 'female'
+   OR Age <= 12;
+   
+   
+SELECT AVG(Survived) AS others_rate
+FROM titanic
+WHERE Sex <> 'female'
+  AND Age > 12;
