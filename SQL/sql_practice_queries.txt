@@ -15,3 +15,129 @@ SELECT AVG(Survived) AS others_rate
 FROM titanic
 WHERE Sex <> 'female'
   AND Age > 12;
+
+######################################
+
+SQL Titanic Aggregation Queries — Explanation
+
+Original queries:
+
+1.  SELECT * FROM titanic LIMIT 10;
+
+Explanation: - SELECT * means select all columns. - FROM titanic means
+get the data from the titanic table. - LIMIT 10 means return only the
+first 10 rows. - This query is used to understand the table structure,
+column names, and sample data.
+
+------------------------------------------------------------------------
+
+2.  SELECT AVG(Survived) AS overall_rate FROM titanic;
+
+Explanation: - AVG(Survived) calculates the average value of the
+Survived column. - In this dataset, Survived is typically: 1 = survived
+0 = did not survive - For example, if 70 out of 100 passengers survived:
+AVG(Survived) = (70 × 1 + 30 × 0) / 100 = 0.70 - Therefore, 0.70
+represents a 70% survival rate. - AS overall_rate gives the calculated
+column a meaningful name.
+
+------------------------------------------------------------------------
+
+3.  SELECT AVG(Survived) AS women_children_rate FROM titanic WHERE Sex =
+    ‘female’ OR Age <= 12;
+
+Explanation: - We again calculate AVG(Survived), but this time only for
+passengers who meet the WHERE condition. - Sex = ‘female’ selects female
+passengers. - Age <= 12 selects passengers who are 12 years old or
+younger. - OR means a passenger is included if either condition is
+true. - So this query defines “women and children” as: Female passengers
+OR passengers aged 12 or younger. - AS women_children_rate labels the
+result.
+
+Example: A passenger who is female and age 30 -> included. A passenger
+who is male and age 10 -> included. A passenger who is male and age 30
+-> excluded.
+
+------------------------------------------------------------------------
+
+4.  SELECT AVG(Survived) AS others_rate FROM titanic WHERE Sex <>
+    ‘female’ AND Age > 12;
+
+Explanation: - This calculates the survival rate for everyone outside
+the “women and children” definition. - Sex <> ‘female’ means the
+passenger is not female. - Age > 12 means the passenger is older than
+12. - AND means both conditions must be true. - Therefore, this selects
+passengers who are: Not female AND older than 12. - AS others_rate
+labels the result.
+
+------------------------------------------------------------------------
+
+Important SQL concepts used:
+
+SELECT Chooses which columns or calculations to return.
+
+FROM Specifies the table from which data is retrieved.
+
+WHERE Filters rows based on a condition.
+
+LIMIT Restricts the number of rows returned.
+
+AVG() Aggregate function that calculates the average.
+
+AS Creates an alias (temporary name) for a column/result.
+
+= Means “equal to”.
+
+<> Means “not equal to”.
+
+OR At least one condition must be true.
+
+AND Both conditions must be true.
+
+------------------------------------------------------------------------
+
+Why does AVG(Survived) give a survival rate?
+
+Because Survived contains 1 and 0:
+
+1 = survived 0 = did not survive
+
+Suppose we have:
+
+Survived 1 1 0 1 0
+
+AVG = (1 + 1 + 0 + 1 + 0) / 5 = 3 / 5 = 0.60
+
+So the survival rate is 60%.
+
+------------------------------------------------------------------------
+
+How the Titanic queries answer the question:
+
+overall_rate -> Survival rate of all passengers.
+
+women_children_rate -> Survival rate of females OR passengers aged 12 or
+younger.
+
+others_rate -> Survival rate of passengers who are not female AND older
+than 12.
+
+Compare:
+
+women_children_rate > others_rate
+
+If this is true, women and children had a higher survival rate than the
+others in this sample.
+
+------------------------------------------------------------------------
+
+Complete SQL:
+
+SELECT * FROM titanic LIMIT 10;
+
+SELECT AVG(Survived) AS overall_rate FROM titanic;
+
+SELECT AVG(Survived) AS women_children_rate FROM titanic WHERE Sex =
+‘female’ OR Age <= 12;
+
+SELECT AVG(Survived) AS others_rate FROM titanic WHERE Sex <> ‘female’
+AND Age > 12;
