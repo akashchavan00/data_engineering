@@ -16,7 +16,7 @@ FROM titanic
 WHERE Sex <> 'female'
   AND Age > 12;
 
-######################################
+################Explanation######################
 
 SQL Titanic Aggregation Queries — Explanation
 
