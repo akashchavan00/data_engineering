@@ -1,0 +1,162 @@
+SQL GROUP BY Practice — Titanic Passenger Class Survival Rate
+
+TASK We have a Titanic table containing: - Survived: 1 if the passenger
+survived, 0 if the passenger did not survive. - Pclass: Passenger class
+(1, 2, or 3).
+
+We need to calculate the survival rate for each passenger class using
+GROUP BY.
+
+------------------------------------------------------------------------
+
+SQL QUERY
+
+SELECT Pclass, AVG(Survived) AS survival_rate FROM titanic GROUP BY
+Pclass ORDER BY Pclass ASC;
+
+------------------------------------------------------------------------
+
+QUERY EXPLANATION
+
+1.  SELECT Pclass
+
+This selects the passenger class from the table.
+
+Pclass contains values such as: - 1 → First class - 2 → Second class - 3
+→ Third class
+
+We want one result row for each class.
+
+------------------------------------------------------------------------
+
+2.  AVG(Survived) AS survival_rate
+
+AVG() calculates the average of the Survived column.
+
+The Survived column contains: - 1 → survived - 0 → did not survive
+
+Because of this, the average is equal to the survival rate.
+
+Example:
+
+Suppose a class has 5 passengers:
+
+Survived
+
+1 1 0 1 0
+
+AVG(Survived) = (1 + 1 + 0 + 1 + 0) / 5 = 3 / 5 = 0.60
+
+Therefore, the survival rate is 0.60, or 60%.
+
+AS survival_rate gives the calculated result the required column name.
+
+------------------------------------------------------------------------
+
+3.  FROM titanic
+
+This tells SQL to retrieve the data from the titanic table.
+
+------------------------------------------------------------------------
+
+4.  GROUP BY Pclass
+
+This is the most important part of this question.
+
+GROUP BY Pclass divides the passengers into groups based on their
+passenger class.
+
+Conceptually:
+
+Group 1 → all passengers where Pclass = 1 Group 2 → all passengers where
+Pclass = 2 Group 3 → all passengers where Pclass = 3
+
+Then AVG(Survived) is calculated separately for each group.
+
+Without GROUP BY:
+
+SELECT AVG(Survived) FROM titanic;
+
+This gives one overall survival rate.
+
+With GROUP BY:
+
+SELECT Pclass, AVG(Survived) FROM titanic GROUP BY Pclass;
+
+This gives one survival rate for each Pclass.
+
+------------------------------------------------------------------------
+
+5.  ORDER BY Pclass ASC
+
+ORDER BY sorts the result.
+
+ASC means ascending order.
+
+So the output will be ordered:
+
+Pclass 1 Pclass 2 Pclass 3
+
+Since ascending order is usually the default, this could also be written
+as:
+
+ORDER BY Pclass;
+
+------------------------------------------------------------------------
+
+EXPECTED OUTPUT STRUCTURE
+
+  -------- ---------------
+  Pclass   survival_rate
+
+  1 2 3    … … …
+  -------- ---------------
+
+The exact survival_rate values depend on the 100-row sample dataset.
+
+------------------------------------------------------------------------
+
+IMPORTANT CONCEPT: GROUP BY
+
+Think of GROUP BY as:
+
+“Put rows having the same value into the same group, then perform an
+aggregate calculation on each group.”
+
+For example:
+
+SELECT Pclass, AVG(Survived) FROM titanic GROUP BY Pclass;
+
+means:
+
+“For each passenger class, calculate the average Survived value.”
+
+------------------------------------------------------------------------
+
+COMMON AGGREGATE FUNCTIONS
+
+GROUP BY is commonly used with aggregate functions such as:
+
+COUNT() → counts rows SUM() → adds values AVG() → calculates average
+MIN() → finds minimum MAX() → finds maximum
+
+Examples:
+
+SELECT Pclass, COUNT(*) FROM titanic GROUP BY Pclass;
+
+This gives the number of passengers in each class.
+
+SELECT Pclass, AVG(Survived) FROM titanic GROUP BY Pclass;
+
+This gives the survival rate for each class.
+
+------------------------------------------------------------------------
+
+FINAL ANSWER
+
+SELECT Pclass, AVG(Survived) AS survival_rate FROM titanic GROUP BY
+Pclass ORDER BY Pclass ASC;
+
+This query groups passengers by Pclass and calculates the average
+Survived value for each group. Since Survived is 1 for survivors and 0
+for non-survivors, the average represents the survival rate.
