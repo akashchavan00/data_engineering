@@ -1,0 +1,418 @@
+SQL JOIN OPERATIONS — COMPLETE GUIDE
+
+Example tables: - Products(ProductID, ProductName, SupplierID, …) -
+Suppliers(SupplierID, CompanyName, …)
+
+The main purpose of a JOIN is to combine rows from two or more tables
+using a related column.
+
+------------------------------------------------------------------------
+
+1.  INNER JOIN
+
+SQL:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products INNER
+JOIN Suppliers ON Products.SupplierID = Suppliers.SupplierID ORDER BY
+Products.ProductName;
+
+Explanation:
+
+INNER JOIN returns only the rows where a matching record exists in BOTH
+tables.
+
+The condition:
+
+ON Products.SupplierID = Suppliers.SupplierID
+
+means:
+
+“Match a product with the supplier whose SupplierID is the same.”
+
+Example:
+
+Products: ProductName | SupplierID ————|———– Laptop | 1 Mouse | 2
+Keyboard | 5
+
+Suppliers: SupplierID | CompanyName ———–|———— 1 | ABC Ltd 2 | XYZ Ltd 3
+| PQR Ltd
+
+Result:
+
+  ProductName   CompanyName
+  ------------- -------------
+  Laptop        ABC Ltd
+  Mouse         XYZ Ltd
+
+Keyboard is not included because SupplierID 5 does not exist in
+Suppliers.
+
+------------------------------------------------------------------------
+
+2.  LEFT JOIN (LEFT OUTER JOIN)
+
+SQL:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products LEFT
+JOIN Suppliers ON Products.SupplierID = Suppliers.SupplierID ORDER BY
+Products.ProductName;
+
+Explanation:
+
+LEFT JOIN returns: - ALL rows from the LEFT table (Products) - Matching
+rows from the RIGHT table (Suppliers)
+
+If a product has no matching supplier, the supplier columns contain
+NULL.
+
+Example:
+
+Products: ProductName | SupplierID ————|———– Laptop | 1 Mouse | 2
+Keyboard | 5
+
+Suppliers: SupplierID | CompanyName ———–|———— 1 | ABC Ltd 2 | XYZ Ltd
+
+Result:
+
+  ProductName   CompanyName
+  ------------- -------------
+  Laptop        ABC Ltd
+  Mouse         XYZ Ltd
+  Keyboard      NULL
+
+Keyboard is still included because Products is the left table.
+
+------------------------------------------------------------------------
+
+3.  RIGHT JOIN (RIGHT OUTER JOIN)
+
+SQL:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products RIGHT
+JOIN Suppliers ON Products.SupplierID = Suppliers.SupplierID ORDER BY
+Suppliers.CompanyName;
+
+Explanation:
+
+RIGHT JOIN returns: - ALL rows from the RIGHT table (Suppliers) -
+Matching rows from the LEFT table (Products)
+
+If a supplier has no matching product, the product columns contain NULL.
+
+Example:
+
+Products: ProductName | SupplierID ————|———– Laptop | 1 Mouse | 2
+
+Suppliers: SupplierID | CompanyName ———–|———— 1 | ABC Ltd 2 | XYZ Ltd 3
+| PQR Ltd
+
+Result:
+
+  ProductName   CompanyName
+  ------------- -------------
+  Laptop        ABC Ltd
+  Mouse         XYZ Ltd
+  NULL          PQR Ltd
+
+PQR Ltd is included even though it does not have a matching product.
+
+NOTE: RIGHT JOIN is logically equivalent to reversing the tables in a
+LEFT JOIN.
+
+------------------------------------------------------------------------
+
+4.  FULL OUTER JOIN
+
+SQL:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products FULL
+OUTER JOIN Suppliers ON Products.SupplierID = Suppliers.SupplierID ORDER
+BY Products.ProductName;
+
+Explanation:
+
+FULL OUTER JOIN returns: - ALL matching rows - ALL unmatched rows from
+Products - ALL unmatched rows from Suppliers
+
+Where there is no match, SQL places NULL in the columns from the missing
+side.
+
+Example:
+
+Products: ProductName | SupplierID ————|———– Laptop | 1 Mouse | 2
+Keyboard | 5
+
+Suppliers: SupplierID | CompanyName ———–|———— 1 | ABC Ltd 2 | XYZ Ltd 3
+| PQR Ltd
+
+Conceptual result:
+
+  ProductName   CompanyName
+  ------------- -------------
+  Laptop        ABC Ltd
+  Mouse         XYZ Ltd
+  Keyboard      NULL
+  NULL          PQR Ltd
+
+FULL OUTER JOIN is useful when you want to see everything from both
+tables, including records that do not have a match.
+
+NOTE: Some database systems, including MySQL, do not directly support
+FULL OUTER JOIN. In such systems, it can be simulated using LEFT JOIN +
+RIGHT JOIN with UNION.
+
+------------------------------------------------------------------------
+
+5.  CROSS JOIN
+
+SQL:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products CROSS
+JOIN Suppliers;
+
+Explanation:
+
+CROSS JOIN creates every possible combination of rows from the two
+tables.
+
+It does NOT require an ON condition.
+
+If Products has 3 rows and Suppliers has 2 rows:
+
+3 × 2 = 6 combinations
+
+Example:
+
+Products: Laptop Mouse
+
+Suppliers: ABC Ltd XYZ Ltd
+
+Result:
+
+Laptop | ABC Ltd Laptop | XYZ Ltd Mouse | ABC Ltd Mouse | XYZ Ltd
+
+Be careful with CROSS JOIN because the number of rows can become very
+large.
+
+------------------------------------------------------------------------
+
+6.  SELF JOIN
+
+A SELF JOIN is when a table is joined with itself.
+
+Example table:
+
+Employees EmployeeID | EmployeeName | ManagerID ———–|————–|———- 1 | John
+| NULL 2 | Akash | 1 3 | Rahul | 1
+
+SQL:
+
+SELECT E.EmployeeName AS Employee, M.EmployeeName AS Manager FROM
+Employees E LEFT JOIN Employees M ON E.ManagerID = M.EmployeeID;
+
+Explanation:
+
+The same Employees table is used twice.
+
+E represents the employee. M represents the manager.
+
+The condition:
+
+E.ManagerID = M.EmployeeID
+
+matches an employee with their manager.
+
+Result:
+
+  Employee   Manager
+  ---------- ---------
+  John       NULL
+  Akash      John
+  Rahul      John
+
+SELF JOIN is commonly used for hierarchical data such as: - Employees
+and managers - Categories and parent categories - Organizational
+structures - Friends or relationships
+
+------------------------------------------------------------------------
+
+7.  NATURAL JOIN
+
+SQL:
+
+SELECT ProductName, CompanyName FROM Products NATURAL JOIN Suppliers;
+
+Explanation:
+
+NATURAL JOIN automatically joins tables using columns that have the same
+name in both tables.
+
+For example, if both tables contain:
+
+SupplierID
+
+SQL automatically uses SupplierID as the joining column.
+
+However, NATURAL JOIN is generally not recommended in production SQL
+because the join condition is implicit. If another column with the same
+name is added to the tables later, the query’s behavior can unexpectedly
+change.
+
+It is usually safer to explicitly write:
+
+ON Products.SupplierID = Suppliers.SupplierID
+
+------------------------------------------------------------------------
+
+8.  JOIN USING
+
+Some SQL databases support USING when both tables have a column with the
+same name.
+
+SQL:
+
+SELECT ProductName, CompanyName FROM Products JOIN Suppliers USING
+(SupplierID);
+
+Explanation:
+
+USING(SupplierID) means:
+
+“Join the two tables using the SupplierID column.”
+
+This is shorter than:
+
+ON Products.SupplierID = Suppliers.SupplierID
+
+It can only be used when the joining column has the same name in both
+tables.
+
+------------------------------------------------------------------------
+
+IMPORTANT: = vs ==
+
+Your original query used:
+
+ON Products.SupplierID == Suppliers.SupplierID
+
+In standard SQL, use:
+
+ON Products.SupplierID = Suppliers.SupplierID
+
+The single equals sign (=) is the standard SQL comparison operator.
+
+Some SQL environments may accept ==, but you should use = when writing
+portable SQL.
+
+------------------------------------------------------------------------
+
+UNDERSTANDING LEFT AND RIGHT
+
+Consider:
+
+FROM Products LEFT JOIN Suppliers
+
+Products = LEFT table Suppliers = RIGHT table
+
+Therefore:
+
+LEFT JOIN → Keep everything from Products.
+
+RIGHT JOIN → Keep everything from Suppliers.
+
+FULL OUTER JOIN → Keep everything from both.
+
+INNER JOIN → Keep only matching records.
+
+------------------------------------------------------------------------
+
+JOIN COMPARISON
+
+INNER JOIN: Only matching rows.
+
+LEFT JOIN: Everything from left + matching rows from right.
+
+RIGHT JOIN: Everything from right + matching rows from left.
+
+FULL OUTER JOIN: Everything from both tables.
+
+CROSS JOIN: Every possible combination.
+
+SELF JOIN: A table is joined with itself.
+
+NATURAL JOIN: Automatically joins using columns with the same name.
+
+------------------------------------------------------------------------
+
+EASY WAY TO REMEMBER
+
+INNER: “Give me only matches.”
+
+LEFT: “Give me everything from my left table.”
+
+RIGHT: “Give me everything from my right table.”
+
+FULL: “Give me everything from both.”
+
+CROSS: “Give me every possible combination.”
+
+SELF: “Join the table with itself.”
+
+------------------------------------------------------------------------
+
+YOUR ORIGINAL QUERY — CORRECTED
+
+Your query:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products LEFT
+JOIN Suppliers ON Products.SupplierID == Suppliers.SupplierID ORDER BY
+ProductName;
+
+Standard SQL version:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products LEFT
+JOIN Suppliers ON Products.SupplierID = Suppliers.SupplierID ORDER BY
+Products.ProductName;
+
+This returns every product, along with its supplier company name if a
+matching supplier exists.
+
+If a product does not have a matching supplier, CompanyName will be
+NULL.
+
+------------------------------------------------------------------------
+
+JOIN SYNTAX TEMPLATE
+
+General structure:
+
+SELECT columns FROM TableA JOIN_TYPE TableB ON TableA.common_column =
+TableB.common_column WHERE conditions ORDER BY columns;
+
+For example:
+
+SELECT Products.ProductName, Suppliers.CompanyName FROM Products LEFT
+JOIN Suppliers ON Products.SupplierID = Suppliers.SupplierID WHERE
+Products.ProductName IS NOT NULL ORDER BY Products.ProductName;
+
+The general order is:
+
+SELECT FROM JOIN ON WHERE GROUP BY HAVING ORDER BY LIMIT
+
+------------------------------------------------------------------------
+
+KEY TAKEAWAY
+
+JOIN is used to combine information from multiple tables.
+
+The most important JOINs to master first are:
+
+1.  INNER JOIN
+2.  LEFT JOIN
+3.  RIGHT JOIN
+4.  FULL OUTER JOIN
+5.  CROSS JOIN
+6.  SELF JOIN
+
+For SQL interviews and practical SQL development, pay special attention
+to INNER JOIN and LEFT JOIN because they are used very frequently.
