@@ -1,0 +1,230 @@
+=====================================================
+AMAZON EBS (ELASTIC BLOCK STORE) - SIMPLE STUDY GUIDE
+(For AWS Certified Data Engineer - Associate Exam)
+=====================================================
+
+------------------------------------------------------
+1. WHAT PROBLEM DOES EBS SOLVE?
+------------------------------------------------------
+An EC2 instance (a virtual server) needs somewhere to store
+its operating system, applications, and data - just like a
+physical computer needs a hard drive.
+
+EBS is that "hard drive" for EC2, except it lives on AWS's
+network as a separate, durable, resizable resource instead
+of a physical disk stuck inside the server.
+
+------------------------------------------------------
+2. WHAT IS EBS, IN ONE SENTENCE
+------------------------------------------------------
+Amazon EBS = a virtual hard drive (block storage) that you
+attach to an EC2 instance, which keeps your data even after
+the instance is stopped, and can be resized, backed up
+(snapshotted), and moved around independently of the
+instance.
+
+Think of it like: a USB external hard drive that you can
+plug into one "computer" (EC2 instance) at a time, unplug,
+and plug into a different one - except it's virtual and
+lives in the cloud.
+
+------------------------------------------------------
+3. EBS vs S3 (COMMON EXAM CONFUSION - MEMORIZE THIS)
+------------------------------------------------------
+EBS (Block Storage)                | S3 (Object Storage)
+------------------------------------|------------------------------
+Attaches to ONE EC2 instance        | Accessed directly over the
+at a time (like a hard drive)       | internet/API, not "attached"
+Data organized in fixed-size BLOCKS | Data stored as whole OBJECTS
+                                     | (files) with metadata
+Used for: OS boot volumes,          | Used for: data lakes, backups,
+databases, apps needing fast,       | static files, big datasets,
+low-latency disk access             | analytics source data
+Tied to a single Availability Zone  | Regional - no AZ restriction
+Must be attached to a running       | Accessible independently,
+instance to be useful               | anytime, no server needed
+Higher cost per GB                  | Much cheaper per GB at scale
+
+Exam tip: If the question is about EC2 needing FAST,
+LOW-LATENCY disk access (like a database's data files),
+think EBS. If it's about storing LARGE amounts of data
+for analytics/data lake use, think S3.
+
+------------------------------------------------------
+4. KEY EBS CHARACTERISTICS
+------------------------------------------------------
+- BLOCK STORAGE: data is split into fixed-size "blocks,"
+  like a traditional hard disk - good for random read/write
+  (databases love this).
+- PERSISTENT: data survives even if you stop or reboot the
+  EC2 instance (unlike "instance store," which is wiped).
+- TIED TO ONE AVAILABILITY ZONE (AZ): a volume can only be
+  attached to EC2 instances in the SAME Availability Zone.
+- RESIZABLE ON THE FLY: you can increase size, change
+  volume type, or change performance (IOPS/throughput)
+  WITHOUT stopping the instance, using "Elastic Volumes."
+- REPLICATED WITHIN THE AZ: AWS automatically replicates
+  your EBS volume's data within its Availability Zone for
+  durability (protects against hardware failure).
+
+------------------------------------------------------
+5. EBS VOLUME TYPES (BIG EXAM TOPIC - KNOW THESE WELL)
+------------------------------------------------------
+There are 2 storage "families": SSD-backed (fast, random
+access) and HDD-backed (cheap, sequential/large throughput).
+
+--- SSD-BACKED (for databases, boot volumes, apps) ---
+
+gp3 (General Purpose SSD) - THE DEFAULT/RECOMMENDED CHOICE
+- Balanced performance and cost for most workloads
+- Baseline: 3,000 IOPS and 125 MB/s included FREE, no
+  matter the volume size
+- Can scale up IOPS and throughput INDEPENDENTLY of size,
+  for extra cost (up to much higher limits)
+- About 20% cheaper per GB than the older gp2
+- Good for: boot volumes, dev/test, virtual desktops,
+  small-to-medium databases, most general workloads
+
+gp2 (General Purpose SSD) - OLDER GENERATION
+- Performance (IOPS) scales WITH volume size (bigger
+  volume = more IOPS, tied together - less flexible)
+- Being replaced by gp3 in most new designs
+
+io2 Block Express / io1 (Provisioned IOPS SSD) - HIGHEST PERFORMANCE
+- You PROVISION (specify) an exact IOPS number you need
+- Designed for mission-critical, latency-sensitive
+  databases: SAP HANA, Oracle, Microsoft SQL Server
+- Highest durability of any EBS type
+- Sub-millisecond/very low latency
+- Good for: large enterprise databases needing guaranteed,
+  consistent, very high performance
+
+--- HDD-BACKED (for large, sequential, throughput-heavy data) ---
+
+st1 (Throughput Optimized HDD)
+- Optimized for THROUGHPUT (MB/s), not random IOPS
+- Cheaper than SSD types
+- Good for: big data processing, log processing, data
+  warehouses, streaming workloads - large sequential reads
+
+sc1 (Cold HDD)
+- Lowest cost EBS storage
+- Good for: infrequently accessed, large, cold data /
+  archival use cases where cost matters more than speed
+
+--- OLD/LEGACY ---
+Magnetic (standard) - previous generation, rarely used
+now, small datasets, infrequent access, low cost priority.
+
+Exam quick-pick logic:
+- "Most workloads / don't know what to pick" -> gp3
+- "Critical database, guaranteed high IOPS" -> io2 / io1
+- "Big data, logs, large sequential throughput" -> st1
+- "Archival, rarely accessed, cheapest possible" -> sc1
+
+------------------------------------------------------
+6. EBS SNAPSHOTS (BACKUPS)
+------------------------------------------------------
+A SNAPSHOT is a point-in-time backup of an EBS volume,
+stored in S3 (behind the scenes, though you don't manage
+it directly like a normal S3 object).
+
+Key facts:
+- Snapshots are INCREMENTAL: the first snapshot copies all
+  data, but every snapshot after that only saves the
+  BLOCKS THAT CHANGED since the last snapshot. This saves
+  storage cost and time.
+- You can create a NEW EBS volume from a snapshot (great
+  for cloning environments, migrating to another AZ, or
+  another Region).
+- You can copy snapshots ACROSS Regions and ACROSS accounts
+  - useful for disaster recovery and data migration.
+- Snapshots can be automated using Amazon Data Lifecycle
+  Manager (DLM) to schedule regular backups and clean up
+  old ones automatically.
+
+------------------------------------------------------
+7. EBS ENCRYPTION
+------------------------------------------------------
+- EBS volumes can be encrypted using AWS Key Management
+  Service (KMS).
+- Encryption covers: data at rest inside the volume, data
+  in transit between the instance and the volume, and
+  snapshots made from the volume.
+- You can set encryption to be the ACCOUNT DEFAULT so every
+  new volume is automatically encrypted.
+- If you copy or restore from an encrypted snapshot, the
+  new volume stays encrypted.
+
+------------------------------------------------------
+8. EBS MULTI-ATTACH
+------------------------------------------------------
+- Normally an EBS volume attaches to ONLY ONE EC2 instance
+  at a time.
+- "Multi-Attach" (available on io1/io2 volume types only)
+  lets you attach a SINGLE EBS volume to MULTIPLE EC2
+  instances at the same time, within the same AZ.
+- Requires a cluster-aware file system (the instances need
+  to coordinate access themselves) - it's mainly used for
+  clustered applications.
+
+------------------------------------------------------
+9. EBS vs INSTANCE STORE (ANOTHER COMMON EXAM COMPARISON)
+------------------------------------------------------
+EBS                                | Instance Store
+------------------------------------|------------------------------
+PERSISTENT - survives stop/reboot   | EPHEMERAL - data is LOST when
+                                     | instance stops or terminates
+Network-attached (slightly higher   | Physically attached to the
+latency, but still very fast)       | host - extremely fast
+Can be resized, snapshotted,        | Cannot be detached, resized,
+detached/reattached                 | or snapshotted
+Good for: durable data, databases,  | Good for: temporary/cache
+boot volumes                        | data, buffers, scratch space
+
+------------------------------------------------------
+10. WHY THIS MATTERS FOR A DATA ENGINEER (EXAM ANGLE)
+------------------------------------------------------
+As a data engineer, you'll see EBS mostly in contexts like:
+- Storage for a database running on EC2 (self-managed DB)
+- Storage layer for big-data clusters (e.g. some EMR/Hadoop
+  cluster nodes use EBS for HDFS-style storage)
+- Deciding gp3 vs io2 vs st1 for cost/performance trade-offs
+  in a pipeline component
+- Backing up critical data with snapshots
+- Understanding why S3 (not EBS) is usually the right choice
+  for the actual DATA LAKE, while EBS is for the compute
+  layer's local/attached storage needs
+
+For the exam, remember EBS as the answer when a question
+describes: "block storage attached to EC2," "boot volume,"
+"database needing consistent IOPS," "resize storage without
+downtime," or "point-in-time incremental backup of a
+volume." If the question is about storing a data LAKE or
+huge shared datasets accessed by many services, that's S3,
+not EBS.
+
+------------------------------------------------------
+11. QUICK MEMORY SUMMARY (CHEAT SHEET)
+------------------------------------------------------
+- EBS = block storage attached to a single EC2 instance
+  (like a virtual hard drive)
+- Persistent (survives stop/reboot), tied to one AZ,
+  replicated within that AZ for durability
+- Resizable live using Elastic Volumes (no downtime)
+- SSD types: gp3 (default/balanced), gp2 (older), io2/io1
+  (highest performance, provisioned IOPS, critical DBs)
+- HDD types: st1 (throughput-heavy, big data/logs), sc1
+  (cheapest, cold/archival)
+- Snapshots = incremental, point-in-time backups stored in
+  S3 behind the scenes; can copy cross-region/cross-account
+- Supports encryption via AWS KMS (data at rest + in transit
+  + snapshots)
+- Multi-Attach (io1/io2 only) = one volume, multiple
+  instances, same AZ, needs cluster-aware filesystem
+- EBS = for EC2's attached/local disk needs; S3 = for the
+  actual data lake / large shared datasets
+
+=====================================================
+END OF GUIDE
+=====================================================
