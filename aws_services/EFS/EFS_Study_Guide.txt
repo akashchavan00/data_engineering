@@ -1,0 +1,290 @@
+=====================================================
+AMAZON EFS (ELASTIC FILE SYSTEM) - SIMPLE STUDY GUIDE
+(For AWS Certified Data Engineer - Associate Exam)
+=====================================================
+
+------------------------------------------------------
+1. WHAT PROBLEM DOES EFS SOLVE?
+------------------------------------------------------
+EBS gives ONE EC2 instance its own private hard drive.
+But what if you have MANY EC2 instances (or containers, or
+Lambda functions) that all need to read/write the SAME
+shared files at the SAME time - like a shared folder on a
+company network drive?
+
+EBS can't do that easily (it attaches to one instance at a
+time). That's the exact gap EFS fills.
+
+------------------------------------------------------
+2. WHAT IS EFS, IN ONE SENTENCE
+------------------------------------------------------
+Amazon EFS = a fully managed, shared network file system
+that many EC2 instances (or containers/Lambda functions)
+can mount and access AT THE SAME TIME, and which grows and
+shrinks automatically as you add or remove files - no
+capacity planning needed.
+
+Think of it like: a shared network drive / shared folder
+that hundreds or thousands of servers can all plug into
+simultaneously, and it auto-resizes itself as data grows.
+
+------------------------------------------------------
+3. EFS vs EBS vs S3 (THE #1 EXAM COMPARISON - MEMORIZE)
+------------------------------------------------------
+EBS               | EFS                  | S3
+-------------------|----------------------|---------------------
+Block storage      | File storage         | Object storage
+Attaches to ONE     | Mounted by MANY      | Accessed via API/
+EC2 instance at a   | EC2 instances/       | HTTP, not "mounted"
+time                | containers at once   | like a drive
+Tied to ONE AZ      | Spans MULTIPLE AZs   | Regional (no AZ
+                     | (regional by default)| restriction)
+Fixed size you       | Grows/shrinks        | Effectively
+provision            | automatically, pay   | unlimited, pay
+                     | only for what you    | only for what you
+                     | use                  | store
+Good for: single-    | Good for: shared     | Good for: data
+instance databases,  | file storage across  | lakes, backups,
+boot volumes         | many servers (home   | static files, huge
+                     | dirs, content mgmt,  | analytics datasets
+                     | shared app data)     |
+Uses NFS protocol     | Uses NFS protocol    | Uses HTTP REST API
+(as a raw disk)       | (like a real file    | (objects, not files)
+                     | system)              |
+
+Exam tip: "MULTIPLE EC2 instances need to read/write the
+SAME files at the SAME time" -> that phrase = EFS, almost
+every time.
+
+------------------------------------------------------
+4. KEY EFS CHARACTERISTICS
+------------------------------------------------------
+- FULLY MANAGED / SERVERLESS: no provisioning of storage
+  capacity - AWS handles the infrastructure, patching, and
+  scaling for you automatically.
+- ELASTIC: file system grows and shrinks automatically as
+  you add/remove files. You pay only for storage you
+  actually use (no pre-allocated size like EBS).
+- SHARED ACCESS: thousands of EC2 instances, containers
+  (ECS/EKS), or Lambda functions can mount and use the same
+  file system concurrently.
+- MULTI-AZ BY DEFAULT: "Regional" EFS file systems store
+  data redundantly across MULTIPLE Availability Zones for
+  high durability and availability (unlike EBS, which is
+  locked to one AZ).
+- USES NFS PROTOCOL (Network File System) - the standard
+  protocol Linux systems use for shared file access. This
+  means EFS is primarily for LINUX-based workloads (Windows
+  support is limited).
+- HYBRID ACCESS: on-premises servers can also mount EFS over
+  AWS Direct Connect or VPN, so it can bridge cloud and
+  on-prem environments.
+
+------------------------------------------------------
+5. FILE SYSTEM TYPES: REGIONAL vs ONE ZONE
+------------------------------------------------------
+REGIONAL (recommended, default):
+- Data is stored redundantly ACROSS multiple AZs
+- Highest availability/durability
+- Best for production workloads needing resilience
+
+ONE ZONE:
+- Data is stored redundantly WITHIN a single AZ only
+- Cheaper (~47% lower cost than Regional)
+- Risk: if that one AZ has a disaster, data could be lost
+- Best for: dev/test environments, or workloads where a
+  single-AZ failure risk is acceptable, and you want lower
+  cost
+
+------------------------------------------------------
+6. STORAGE CLASSES (COST OPTIMIZATION TIERS)
+------------------------------------------------------
+EFS now offers THREE storage classes to match how often
+data is actually accessed:
+
+1. EFS STANDARD
+   - SSD-powered, sub-millisecond latency
+   - For frequently accessed / actively used data
+   - Highest cost per GB
+
+2. EFS INFREQUENT ACCESS (EFS-IA)
+   - Cost-optimized, low double-digit millisecond latency
+   - Designed for data accessed only a few times a QUARTER
+   - Cheaper than Standard
+
+3. EFS ARCHIVE (newest addition)
+   - The cheapest tier
+   - Designed for data accessed only a few times a YEAR or
+     less (truly cold/archival data)
+   - Still offers instant access when needed (not like
+     "cold storage" that takes hours to restore)
+
+(Each of these also has a "One Zone" version - e.g. EFS
+One Zone-IA - which combines the single-AZ cost savings
+with the infrequent-access cost savings.)
+
+------------------------------------------------------
+7. LIFECYCLE MANAGEMENT (AUTOMATIC TIERING)
+------------------------------------------------------
+- EFS Lifecycle Management automatically MOVES files
+  between storage classes based on how recently they were
+  accessed - you don't have to do this manually.
+- Default/recommended policy: move files from EFS Standard
+  to EFS-IA after 30 days of no access, and to EFS Archive
+  after 90 days of no access.
+- You can also set a policy that moves files BACK to the
+  performance-optimized tier automatically if they suddenly
+  get accessed again.
+- This combination is often called EFS Intelligent-Tiering
+  behavior, and it can cut storage costs by a large margin
+  (AWS advertises savings up to ~92% for cold data) without
+  any manual work.
+
+------------------------------------------------------
+8. PERFORMANCE MODES (SET AT CREATION - CAN'T CHANGE LATER)
+------------------------------------------------------
+GENERAL PURPOSE MODE (default, recommended for almost
+everyone):
+- Lowest latency per file operation
+- Supports up to 35,000 IOPS
+- Good for most workloads: web serving, content management,
+  home directories, general apps
+
+MAX I/O MODE (older/legacy option):
+- Can scale to much higher aggregate throughput/IOPS
+  (up to ~500,000 IOPS)
+- But has HIGHER latency per individual operation
+- Designed for highly parallelized workloads spread across
+  thousands of EC2 instances at once
+- Not supported for One Zone file systems
+- AWS now generally recommends using General Purpose mode
+  for almost all workloads instead
+
+Exam tip: General Purpose = default, lowest latency, right
+answer 90% of the time. Max I/O = only for massive
+parallel/highly-distributed workloads.
+
+------------------------------------------------------
+9. THROUGHPUT MODES
+------------------------------------------------------
+BURSTING THROUGHPUT:
+- Throughput scales automatically WITH the size of your
+  file system (more stored data = more baseline throughput)
+- Uses a "burst credit" system: you accrue credits when
+  usage is below baseline, and spend credits when you burst
+  above it
+
+PROVISIONED THROUGHPUT:
+- You manually specify (provision) the throughput level you
+  need, independent of how much data is stored
+- Good when you know your workload's exact throughput needs
+
+ELASTIC THROUGHPUT (recommended default for most cases):
+- Automatically scales throughput up or down instantly based
+  on actual workload activity - no need to predict or
+  provision anything
+- Best for spiky, unpredictable workloads
+- Most users are moving to this because it's simpler to
+  manage and often cheaper for variable workloads
+
+------------------------------------------------------
+10. MOUNT TARGETS & ACCESS POINTS
+------------------------------------------------------
+MOUNT TARGET:
+- The actual network endpoint (one per AZ) that EC2
+  instances connect to in order to mount the EFS file
+  system, using the NFS protocol
+- You typically create one mount target in each AZ where
+  you have EC2 instances that need access
+
+ACCESS POINTS:
+- Application-specific "entry points" into a shared EFS
+  file system
+- Let you enforce a specific POSIX user/group identity and
+  restrict each application to a specific DIRECTORY within
+  the file system
+- Useful for safely sharing one big file system across many
+  different applications/teams without them stepping on
+  each other's files or permissions
+
+------------------------------------------------------
+11. SECURITY
+------------------------------------------------------
+- Encryption at rest: supported via AWS KMS
+- Encryption in transit: supported using TLS when mounting
+- Access control at 2 levels:
+  1. NETWORK level - Security Groups control which EC2
+     instances/resources can even reach the mount target
+  2. FILE SYSTEM level - standard POSIX (Linux) file
+     permissions control what authenticated users can
+     read/write, plus IAM policies can restrict API-level
+     actions (like who can create mount targets, etc.)
+
+------------------------------------------------------
+12. INTEGRATION WITH OTHER AWS SERVICES
+------------------------------------------------------
+- EC2 - mount as a shared drive across many instances
+- ECS / EKS (containers) - persistent shared storage for
+  containerized applications
+- AWS Lambda - functions can mount an EFS file system
+  directly, useful for large ML models, shared libraries, or
+  large temp datasets that exceed Lambda's normal storage
+- AWS Backup - centralized, automated backup management for
+  EFS file systems
+- On-premises servers - via AWS Direct Connect or VPN
+
+------------------------------------------------------
+13. WHY THIS MATTERS FOR A DATA ENGINEER (EXAM ANGLE)
+------------------------------------------------------
+As a data engineer, EFS commonly shows up when:
+- Multiple EC2 instances or containers in a data pipeline
+  need to share the SAME working files/config/scripts
+- A big data processing cluster needs a shared scratch
+  space accessible by all nodes at once
+- Lambda functions need access to large shared datasets or
+  ML models that don't fit in Lambda's normal temp storage
+- You need a "home directory" style shared file system for
+  a team of data scientists working on EC2/SageMaker
+
+For the exam, remember EFS as the answer when a question
+describes: "shared file storage across multiple EC2
+instances," "grows automatically without capacity
+planning," "NFS-based shared storage," "Lambda needs a
+large shared file directory," or "multi-AZ resilient file
+storage for Linux workloads." If it's ONE instance's own
+disk -> EBS. If it's a huge object/data-lake style dataset
+accessed via API -> S3.
+
+------------------------------------------------------
+14. QUICK MEMORY SUMMARY (CHEAT SHEET)
+------------------------------------------------------
+- EFS = fully managed, shared NETWORK FILE SYSTEM (NFS) for
+  Linux workloads - many instances can mount it at once
+- Elastic: auto grows/shrinks, pay only for what's used, no
+  capacity planning
+- File system types: Regional (multi-AZ, default, most
+  durable) vs One Zone (single-AZ, ~47% cheaper)
+- Storage classes: Standard (frequent access) -> IA
+  (infrequent, few times/quarter) -> Archive (rare, few
+  times/year, cheapest)
+- Lifecycle Management auto-moves files between classes
+  based on access patterns (default: 30 days -> IA, 90 days
+  -> Archive)
+- Performance modes: General Purpose (default, low latency,
+  most workloads) vs Max I/O (legacy, higher throughput
+  ceiling but higher per-op latency, massive parallel jobs)
+- Throughput modes: Bursting (scales with size), Provisioned
+  (manual/fixed), Elastic (auto-scales instantly, best
+  default for spiky workloads)
+- Mount targets = per-AZ network endpoints for mounting;
+  Access Points = per-app entry points with restricted
+  identity/directory
+- Encrypted at rest (KMS) and in transit (TLS)
+- Integrates with EC2, ECS/EKS, Lambda, on-prem (via Direct
+  Connect/VPN), AWS Backup
+- Core exam trigger phrase: "shared file access across
+  multiple EC2 instances/containers at the same time"
+
+=====================================================
+END OF GUIDE
+=====================================================
