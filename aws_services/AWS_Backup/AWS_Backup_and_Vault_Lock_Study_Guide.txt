@@ -1,0 +1,339 @@
+=====================================================
+AWS BACKUP & AWS BACKUP VAULT LOCK - SIMPLE STUDY GUIDE
+(For AWS Certified Data Engineer - Associate Exam)
+=====================================================
+
+=====================================================
+PART 1: AWS BACKUP
+=====================================================
+
+------------------------------------------------------
+1. WHAT PROBLEM DOES AWS BACKUP SOLVE?
+------------------------------------------------------
+Without AWS Backup, if you want to back up your data, you'd
+have to go into EACH service separately:
+- Manually snapshot EBS volumes
+- Manually snapshot RDS databases
+- Manually back up DynamoDB tables
+- Manually back up EFS file systems
+- ...each with its OWN separate console, schedule, and
+  retention rules
+
+That's a lot of scattered, manual, easy-to-forget work,
+especially across many AWS accounts and services.
+
+------------------------------------------------------
+2. WHAT IS AWS BACKUP, IN ONE SENTENCE
+------------------------------------------------------
+AWS Backup = a fully managed, CENTRALIZED service that lets
+you create ONE policy ("backup plan") to automatically
+back up MANY different AWS resources (EBS, RDS, DynamoDB,
+EFS, EC2, S3, and more) - and even on-premises workloads -
+from a single place, instead of managing backups
+service-by-service.
+
+Think of it like: one universal remote control that backs
+up everything in your AWS account, instead of needing a
+separate remote for every device.
+
+------------------------------------------------------
+3. WHAT SERVICES/RESOURCES DOES IT SUPPORT?
+------------------------------------------------------
+AWS Backup can protect resources including:
+- Amazon EBS volumes
+- Amazon RDS databases (and Aurora)
+- Amazon DynamoDB tables
+- Amazon EFS file systems
+- Amazon EC2 instances (full instance, not just volumes)
+- Amazon S3 buckets
+- Amazon FSx file systems
+- AWS Storage Gateway volumes
+- VMware workloads (hybrid/on-premises)
+- Other supported databases like DocumentDB, Neptune
+
+Exam tip: If a question says "we need ONE consistent backup
+policy across MULTIPLE different AWS services" -> that's
+AWS Backup, not manual snapshots.
+
+------------------------------------------------------
+4. KEY CONCEPTS / BUILDING BLOCKS
+------------------------------------------------------
+BACKUP PLAN
+- A policy that defines: WHAT to back up, HOW OFTEN
+  (schedule), HOW LONG to keep it (lifecycle/retention),
+  and WHERE to store it (which backup vault)
+- You create the plan once and apply it broadly
+
+BACKUP SELECTION / TAG-BASED ASSIGNMENT
+- Instead of manually picking each resource, you can tag
+  resources (e.g. "Environment=Production") and the backup
+  plan automatically applies to anything with that tag
+- This means new resources can get backed up automatically
+  just by tagging them correctly - no manual re-configuration
+
+BACKUP VAULT
+- A logical CONTAINER where your backups (recovery points)
+  are stored
+- Each vault can have its own access policy and encryption
+  key
+- You can organize vaults by team, environment, or
+  compliance requirement (e.g. a separate vault just for
+  regulated financial data)
+
+RECOVERY POINT
+- The actual backup itself (a point-in-time copy of a
+  resource) stored inside a backup vault
+
+ON-DEMAND BACKUP
+- A manual, one-time backup you trigger yourself, outside
+  of the regular scheduled plan (e.g. right before a risky
+  change)
+
+------------------------------------------------------
+5. LIFECYCLE MANAGEMENT (COST OPTIMIZATION)
+------------------------------------------------------
+- Backup plans can automatically transition older backups
+  to COLD STORAGE (cheaper) after a set number of days, and
+  then EXPIRE (delete) them after a set retention period
+- This avoids paying full price forever for old backups you
+  rarely need, while still keeping them available for
+  compliance/recovery windows
+
+------------------------------------------------------
+6. CROSS-REGION AND CROSS-ACCOUNT BACKUP COPIES
+------------------------------------------------------
+- AWS Backup can automatically COPY backups to a different
+  AWS REGION - useful for disaster recovery (if a whole
+  region has an outage, your backup is safe elsewhere)
+- It can also copy backups to a different AWS ACCOUNT -
+  useful for extra isolation (e.g. protecting against a
+  compromised primary account) and for organizational
+  separation of backup ownership
+- Works well with AWS Organizations to manage backup
+  policies centrally across MANY accounts at once
+
+------------------------------------------------------
+7. ENCRYPTION
+------------------------------------------------------
+- All backups are encrypted at rest and in transit using
+  AWS KMS
+- Backup encryption keys are INDEPENDENT from the original
+  resource's encryption keys - this is an important security
+  layer (if the production key is somehow compromised, the
+  backup isn't automatically compromised too)
+
+------------------------------------------------------
+8. RESTORE TESTING
+------------------------------------------------------
+- AWS Backup can automatically run RESTORE TESTS - actually
+  restoring a backup on a schedule to VERIFY it works,
+  rather than assuming a backup is good just because the
+  job said "success"
+- This catches broken/unusable backups before you actually
+  need them in a real disaster
+
+------------------------------------------------------
+9. RANSOMWARE / SECURITY-FOCUSED FEATURES
+------------------------------------------------------
+- MALWARE SCANNING: AWS Backup can scan backups for malware
+  (using GuardDuty integration) before you restore them, so
+  you don't accidentally restore an infected file back into
+  production
+- LOGICALLY AIR-GAPPED VAULTS: a special type of vault
+  isolated from your normal account/network access paths,
+  adding another layer of ransomware protection
+- BACKUP VAULT LOCK: makes backups immutable/tamper-proof
+  (covered in detail in Part 2 below)
+
+------------------------------------------------------
+10. MONITORING & GOVERNANCE
+------------------------------------------------------
+- Centralized dashboard shows backup job status
+  (success/failure) across all resources and accounts
+- Sends alerts/notifications (via Amazon SNS/EventBridge)
+  for job completions or failures
+- AWS BACKUP AUDIT MANAGER: automatically checks whether
+  your backup activity actually follows your organization's
+  compliance rules (e.g. "was everything tagged Production
+  actually backed up within the required window?") and
+  generates audit-ready reports
+
+------------------------------------------------------
+11. WHY THIS MATTERS FOR A DATA ENGINEER (EXAM ANGLE)
+------------------------------------------------------
+As a data engineer, AWS Backup matters for:
+- Making sure critical data pipeline components (RDS
+  databases, DynamoDB tables, EFS shared storage, S3 data)
+  are protected with ONE consistent, auditable policy
+- Meeting compliance/regulatory requirements around data
+  retention and immutability
+- Disaster recovery planning (cross-region/cross-account
+  copies)
+- Avoiding "we forgot to back up that one service" gaps
+  that come from managing snapshots manually per-service
+
+For the exam, remember AWS Backup as the answer when a
+question describes: "centralized backup policy across
+multiple AWS services," "automate backup scheduling and
+retention," "cross-region/cross-account backup copies," or
+"ensure backups meet compliance requirements."
+
+=====================================================
+PART 2: AWS BACKUP VAULT LOCK
+=====================================================
+
+------------------------------------------------------
+12. WHAT PROBLEM DOES VAULT LOCK SOLVE?
+------------------------------------------------------
+A regular backup can still be DELETED - by an admin
+mistake, a compromised account, a rogue employee, or a
+ransomware attacker who gains access to your AWS account.
+If your "safety net" backup can be deleted, it's not really
+a safety net.
+
+Many compliance frameworks (SEC 17a-4, HIPAA, SOC 2, etc.)
+also legally REQUIRE that backups be "immutable" - meaning
+once created, nobody can modify or delete them before a
+required retention period ends.
+
+Backup Vault Lock exists to guarantee that.
+
+------------------------------------------------------
+13. WHAT IS BACKUP VAULT LOCK, IN ONE SENTENCE
+------------------------------------------------------
+AWS Backup Vault Lock = a feature that locks a backup vault
+with WORM (Write Once, Read Many) protection, so the
+recovery points inside it CANNOT be deleted or altered
+before their retention period expires - not even by an
+account administrator, and in the strictest mode, not even
+by AWS itself.
+
+Think of it like: putting your backups in a bank vault with
+a time-lock - even the bank manager can't open it early.
+
+------------------------------------------------------
+14. THE TWO MODES (VERY IMPORTANT FOR EXAM - MEMORIZE)
+------------------------------------------------------
+
+GOVERNANCE MODE
+- Recovery points CANNOT be deleted while the lock is
+  active, EXCEPT by users who have specific/elevated IAM
+  permissions
+- The lock itself CAN be removed or changed by someone with
+  the right IAM privileges
+- Purpose: prevent ACCIDENTAL deletion and casual misuse,
+  while still allowing an authorized emergency override
+- Think of it as: "a safety net with an emergency override"
+
+COMPLIANCE MODE
+- Once the lock is fully active (after a cooling-off
+  period), recovery points CANNOT be deleted before their
+  retention period ends - by ANYONE - not backup admins,
+  not account administrators, not even AWS support/root
+- The lock itself becomes PERMANENT and IRREVERSIBLE - it
+  cannot be removed or loosened once locked
+- The ONLY way out is to literally terminate the entire AWS
+  account (which deletes everything, including the backups)
+- Purpose: true regulatory-grade immutability, used for
+  strict compliance requirements (financial services,
+  healthcare, etc.)
+
+Quick exam distinction:
+- Governance = flexible, override possible with permissions
+- Compliance = absolute, no override, ever, by anyone
+
+------------------------------------------------------
+15. THE "COOLING-OFF PERIOD" (COMPLIANCE MODE ONLY)
+------------------------------------------------------
+- When you set up Compliance Mode, you choose a "grace
+  time" / cooling-off period (minimum 3 days / 72 hours)
+- DURING this cooling-off period, you CAN still remove the
+  vault lock or change its configuration - this gives you a
+  chance to catch mistakes before the lock becomes permanent
+- AFTER the cooling-off period expires, the lock becomes
+  fully immutable and can never be changed or removed again
+- Governance Mode does NOT have (or need) a cooling-off
+  period, since it can always be adjusted by authorized
+  users anyway
+
+------------------------------------------------------
+16. RETENTION PERIOD SETTINGS
+------------------------------------------------------
+When configuring a vault lock, you set:
+- MINIMUM retention period - backups must be kept at LEAST
+  this long
+- MAXIMUM retention period (optional) - backups can't be
+  kept LONGER than this
+- If you don't set a maximum, backups with a retention
+  period set to "Always" will be retained FOREVER and can
+  never be deleted - important to plan carefully, since this
+  affects ongoing storage cost
+
+------------------------------------------------------
+17. IMPORTANT PRACTICAL WARNINGS (COMMON EXAM TRAPS)
+------------------------------------------------------
+- A vault in COMPLIANCE mode can still be DELETED, but ONLY
+  if it is completely EMPTY (no recovery points inside it).
+  You can't force-delete a vault full of locked backups.
+- Locked backups will simply persist (and keep costing
+  money) until their retention period naturally completes -
+  you cannot rush this in Compliance Mode.
+- Test thoroughly in Governance Mode first before switching
+  to Compliance Mode, since Compliance Mode mistakes are
+  permanent.
+
+------------------------------------------------------
+18. WHY THIS MATTERS FOR A DATA ENGINEER (EXAM ANGLE)
+------------------------------------------------------
+Backup Vault Lock is the go-to answer whenever a scenario
+mentions:
+- "Ransomware protection for backups"
+- "Immutable backups" / "WORM protection"
+- "Regulatory compliance requiring backups can't be
+  altered or deleted" (SEC 17a-4, HIPAA, SOC 2, etc.)
+- "Prevent even administrators from deleting backups"
+- "Protect against a compromised account deleting recovery
+  points"
+
+If the scenario says "must allow emergency override by
+authorized staff" -> Governance Mode.
+If the scenario says "must be legally unchangeable by
+anyone, including admins/root" -> Compliance Mode.
+
+------------------------------------------------------
+19. QUICK MEMORY SUMMARY (CHEAT SHEET)
+------------------------------------------------------
+
+AWS BACKUP:
+- Centralized, policy-based backup service across many AWS
+  resources (EBS, RDS, DynamoDB, EFS, EC2, S3, FSx, etc.)
+  and hybrid/on-prem (VMware, Storage Gateway)
+- Core pieces: Backup Plan (schedule + retention + vault),
+  Backup Selection (often tag-based), Backup Vault
+  (container for backups), Recovery Point (the actual
+  backup)
+- Supports lifecycle management (auto-move to cold storage,
+  auto-expire), cross-region/cross-account copies,
+  KMS encryption with keys separate from production keys
+- Extra security: automated restore testing, malware
+  scanning (via GuardDuty), logically air-gapped vaults,
+  Backup Audit Manager for compliance reporting
+
+AWS BACKUP VAULT LOCK:
+- Adds WORM (Write Once Read Many) immutability protection
+  to a backup vault
+- GOVERNANCE MODE: deletion blocked for most users, but
+  authorized IAM users CAN override/remove the lock
+  (flexible safety net)
+- COMPLIANCE MODE: deletion blocked for EVERYONE including
+  root/AWS, after a cooling-off period (min. 3 days) the
+  lock becomes PERMANENT and IRREVERSIBLE (true regulatory
+  immutability)
+- Compliance mode vault can only be deleted if completely
+  empty of recovery points
+- Core exam trigger: "ransomware-resistant / immutable /
+  tamper-proof backups that meet compliance requirements"
+
+=====================================================
+END OF GUIDE
+=====================================================
