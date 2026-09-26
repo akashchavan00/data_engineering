@@ -1,0 +1,208 @@
+=====================================================
+DYNAMODB - RCU & WCU - SIMPLE STUDY GUIDE
+(For AWS Certified Data Engineer - Associate Exam)
+=====================================================
+
+------------------------------------------------------
+1. WHAT PROBLEM DO RCU/WCU SOLVE?
+------------------------------------------------------
+DynamoDB is a fully managed NoSQL database. AWS needs a
+way to know how much "work" your reads and writes require
+so it can:
+- Provision the right amount of capacity for your table
+- Charge you fairly for what you actually use
+- Throttle requests if you exceed what you've provisioned
+
+RCU (Read Capacity Unit) and WCU (Write Capacity Unit) are
+the units AWS uses to measure and bill this throughput.
+
+------------------------------------------------------
+2. WHAT ARE RCU AND WCU, IN ONE SENTENCE
+------------------------------------------------------
+RCU = the amount of "read power" needed to read a certain
+amount of data, per second.
+
+WCU = the amount of "write power" needed to write a
+certain amount of data, per second.
+
+Think of it like: electricity billing. You don't pay for
+"a database," you pay for the amount of read/write
+"current" (RCU/WCU) you draw each second.
+
+------------------------------------------------------
+3. WRITE CAPACITY UNIT (WCU) - THE MATH
+------------------------------------------------------
+1 WCU = one write per second, for an item up to 1 KB.
+
+If your item is LARGER than 1 KB, DynamoDB rounds UP to
+the next whole KB, then that many WCUs are needed.
+
+Formula:
+  WCU needed = ceil(item size in KB / 1 KB) x writes/sec
+
+Examples:
+- Write a 1 KB item, once/sec        -> 1 WCU
+- Write a 3 KB item, once/sec        -> 3 WCU
+- Write a 3.2 KB item, once/sec      -> ceil(3.2) = 4 WCU
+- Write a 1 KB item, 10 times/sec    -> 10 WCU
+- Write a 5 KB item, 10 times/sec    -> 5 x 10 = 50 WCU
+
+Note: Every write consumes a FULL WCU per KB, even for
+tiny items (a 100-byte item still costs 1 full WCU).
+
+------------------------------------------------------
+4. READ CAPACITY UNIT (RCU) - THE MATH
+------------------------------------------------------
+1 RCU = one STRONGLY CONSISTENT read per second, for an
+item up to 4 KB.
+
+If the item is LARGER than 4 KB, round UP to the next
+whole 4 KB chunk.
+
+Formula (strongly consistent read):
+  RCU needed = ceil(item size in KB / 4 KB) x reads/sec
+
+Examples:
+- Read a 4 KB item, once/sec (strong)   -> 1 RCU
+- Read a 8 KB item, once/sec (strong)   -> 2 RCU
+- Read a 5 KB item, once/sec (strong)   -> ceil(5/4) = 2 RCU
+- Read a 4 KB item, 10 times/sec        -> 10 RCU
+
+------------------------------------------------------
+5. CONSISTENCY MODELS CHANGE THE RCU COST (IMPORTANT!)
+------------------------------------------------------
+DynamoDB offers 3 read types, and each costs a DIFFERENT
+number of RCUs for the SAME data:
+
+a) STRONGLY CONSISTENT READ
+   - Always returns the most up-to-date data (waits for
+     all writes to replicate across AZs first).
+   - Cost: 1 RCU per 4 KB (the "full price" baseline).
+
+b) EVENTUALLY CONSISTENT READ (the DEFAULT)
+   - May return slightly stale data (a fraction of a
+     second old) if you read right after a write.
+   - Cost: HALF the RCUs of a strong read
+     -> 1 RCU covers TWO reads of up to 4 KB (per second).
+   - Formula: RCU = ceil(size/4KB) x reads/sec / 2
+
+c) TRANSACTIONAL READ (ACID transactions - TransactGetItems)
+   - Cost: DOUBLE the strongly consistent cost
+     -> 2 RCU per 4 KB read.
+
+Exam tip: "Cheapest read" = eventually consistent.
+"Most expensive/most correct" = transactional.
+Default behavior if you don't specify = eventually
+consistent.
+
+------------------------------------------------------
+6. WRITES DO NOT HAVE A "CONSISTENCY CHOICE"
+------------------------------------------------------
+Unlike reads, writes are always the same cost model
+(1 WCU per 1 KB) - there's no "eventually consistent
+write" option. However:
+
+- TRANSACTIONAL WRITES (TransactWriteItems) cost DOUBLE:
+  2 WCU per 1 KB (same doubling pattern as transactional
+  reads).
+
+------------------------------------------------------
+7. QUICK REFERENCE TABLE
+------------------------------------------------------
+Operation Type              | Cost per unit of data
+-----------------------------|---------------------------
+Write (standard)             | 1 WCU per 1 KB
+Write (transactional)        | 2 WCU per 1 KB
+Read (strongly consistent)   | 1 RCU per 4 KB
+Read (eventually consistent) | 0.5 RCU per 4 KB
+Read (transactional)         | 2 RCU per 4 KB
+
+------------------------------------------------------
+8. CAPACITY MODES - HOW RCU/WCU ARE ACTUALLY CONSUMED
+------------------------------------------------------
+DynamoDB has 2 capacity modes, and RCU/WCU work
+differently depending on which one you pick:
+
+a) PROVISIONED CAPACITY MODE
+   - You tell AWS in advance: "I want X RCUs and Y WCUs
+     per second" for the table (or per index).
+   - If you exceed it -> requests get THROTTLED
+     (ProvisionedThroughputExceededException), unless you
+     have burst capacity or Auto Scaling configured.
+   - You can enable AUTO SCALING to adjust RCU/WCU targets
+     automatically based on traffic (within min/max limits
+     you set).
+   - Billing: pay for provisioned RCU/WCU per hour,
+     whether you use them or not.
+
+b) ON-DEMAND CAPACITY MODE
+   - No need to plan RCU/WCU ahead of time - DynamoDB
+     scales instantly to handle your traffic.
+   - You are billed per actual request (per RCU/WCU
+     CONSUMED), not per provisioned amount.
+   - Good for unpredictable/spiky workloads or when you
+     don't want to manage capacity planning.
+   - More expensive per-request than well-tuned
+     provisioned capacity, but no throttling risk from
+     under-provisioning and no capacity planning needed.
+
+Exam tip: "Unpredictable traffic, new app, don't know
+usage patterns" -> On-Demand.
+"Predictable/steady traffic, want lowest cost, can
+forecast usage" -> Provisioned (+ Auto Scaling).
+
+------------------------------------------------------
+9. HOW TABLE DESIGN AFFECTS RCU/WCU CONSUMPTION
+------------------------------------------------------
+- GetItem / PutItem / UpdateItem / DeleteItem: cost is
+  based on the SIZE OF THAT SINGLE ITEM only.
+- Query: cost is based on the TOTAL SIZE of all items
+  RETURNED by the query (matching the key condition),
+  not the whole partition.
+- Scan: cost is based on the TOTAL SIZE of the ENTIRE
+  TABLE (or entire partition segment) it reads through,
+  even if a FilterExpression discards most results
+  afterward -> Scans are expensive, avoid on large tables.
+- Local Secondary Indexes (LSI) and Global Secondary
+  Indexes (GSI):
+  - Reading from an index consumes RCUs based on the
+    index's own item sizes (projected attributes).
+  - Writing to a table that has a GSI ALSO consumes WCUs
+    on the GSI itself (every write to the base table is
+    mirrored to the GSI) -> GSIs increase total WCU cost.
+
+------------------------------------------------------
+10. COMMON EXAM-STYLE CALCULATIONS
+------------------------------------------------------
+Q: You need to write 100 items/sec, each item is 2 KB.
+   How many WCUs?
+A: ceil(2KB/1KB) x 100 = 2 x 100 = 200 WCU
+
+Q: You need to strongly-consistently read 50 items/sec,
+   each item is 6 KB.
+A: ceil(6/4) x 50 = 2 x 50 = 100 RCU
+
+Q: Same as above but EVENTUALLY consistent instead.
+A: 100 RCU / 2 = 50 RCU
+
+Q: You need to do 20 transactional writes/sec of 1 KB
+   items.
+A: 2 WCU x 1KB x 20 = 40 WCU
+
+------------------------------------------------------
+11. KEY TAKEAWAYS TO MEMORIZE
+------------------------------------------------------
+- WCU: 1 KB granularity, always rounds UP.
+- RCU: 4 KB granularity, always rounds UP.
+- Eventually consistent reads = HALF the RCU cost of
+  strongly consistent reads (cheapest read option).
+- Transactional reads/writes = DOUBLE the normal cost.
+- Provisioned mode = you plan capacity, pay per
+  hour, can throttle, can Auto Scale.
+- On-Demand mode = AWS auto-scales instantly, you pay
+  per request consumed, no throttling from
+  under-provisioning.
+- Scans read (and cost) based on the whole table/segment
+  scanned, not just what's returned - avoid on large
+  tables when possible.
+- GSIs add extra WCU cost on every base-table write.
