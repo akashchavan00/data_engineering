@@ -1,0 +1,845 @@
+================================================================================
+ AWS DATA ENGINEER ASSOCIATE (DEA-C01) - STUDY GUIDE
+ DMS, DMS SOURCES/TARGETS, SCT, CONTINUOUS REPLICATION, MULTI-AZ
+================================================================================
+
+TABLE OF CONTENTS
+  1. AWS DMS - Database Migration Service
+  2. DMS Sources and Targets
+  3. AWS Schema Conversion Tool (SCT)
+  4. DMS - Continuous Replication (CDC)
+  5. AWS DMS - Multi-AZ Deployment
+  6. DMS Serverless (bonus, increasingly tested)
+  7. Security, Networking, Monitoring
+  8. Exam Scenarios and Decision Tables
+  9. Last-Minute Cheat Sheet
+
+NOTE: Service limits, supported engine versions and newer features change over
+time. Use this for concepts and exam patterns; verify exact numbers in the
+current AWS docs if a precise value matters.
+
+
+================================================================================
+ 1. AWS DMS - DATABASE MIGRATION SERVICE
+================================================================================
+
+1.1 WHAT IT IS
+--------------
+- A managed service to migrate databases and data stores to AWS (or between
+  AWS services) quickly and securely.
+- The SOURCE database stays AVAILABLE and operational during the migration
+  (minimal downtime).
+- Supports:
+    * Homogeneous migrations   : same engine      (Oracle -> Oracle, MySQL -> Aurora MySQL)
+    * Heterogeneous migrations : different engines (Oracle -> Aurora PostgreSQL,
+                                                    SQL Server -> MySQL)
+- Supports CONTINUOUS DATA REPLICATION using CDC (Change Data Capture).
+- Self-healing: if the task is interrupted, it can resume.
+- You pay for the replication instance (per hour) + storage + data transfer
+  (or DCUs for DMS Serverless).
+- IMPORTANT RULE: At least ONE endpoint (source OR target) must be in AWS.
+  You cannot use DMS for on-premises -> on-premises.
+- DMS runs the work on an EC2-based "replication instance" that YOU provision
+  (unless you use DMS Serverless).
+
+1.2 CORE COMPONENTS
+-------------------
+
+   +---------------------+      +---------------------+      +--------------------+
+   |   SOURCE ENDPOINT   |      |  REPLICATION        |      |  TARGET ENDPOINT   |
+   |  (connection info:  | ---> |  INSTANCE           | ---> | (connection info:  |
+   |  host, port, creds, |      |  (EC2 managed by    |      |  host, port, creds,|
+   |  engine, SSL)       |      |   DMS, runs tasks)  |      |  engine, SSL)      |
+   +---------------------+      +----------+----------+      +--------------------+
+                                           |
+                                +----------v----------+
+                                | REPLICATION TASK(S) |
+                                | - migration type    |
+                                | - table mappings    |
+                                | - task settings     |
+                                +---------------------+
+
+  a) REPLICATION INSTANCE
+     - An EC2 instance in a VPC that reads from the source, formats data, and
+       writes to the target.
+     - Runs one or more replication tasks.
+     - Instance classes:
+         T3 (burstable)        -> dev/test, small workloads
+         C5/C6i (compute)      -> compute-heavy transformations, many tasks
+         R5/R6i (memory)       -> large transactions, large LOBs, many tables,
+                                  big cache of changes
+     - Allocated storage (default 50 GB): holds logs and cached changes. Too
+       little storage can fail tasks or stall CDC.
+     - Created inside a REPLICATION SUBNET GROUP (subnets in your VPC;
+       multiple AZs needed for Multi-AZ).
+     - Can be Multi-AZ (see Section 5).
+     - Memory is the bottleneck for big transactions/LOBs -> choose R-class.
+
+  b) ENDPOINTS
+     - Hold connection details for source and target data stores.
+     - Support SSL and KMS-encrypted credentials.
+     - Use "Test connection" before running tasks.
+     - Extra connection attributes tune behavior per engine.
+
+  c) REPLICATION TASK
+     - Defines WHAT to migrate and HOW.
+     - Three MIGRATION TYPES:
+         1. Full load                       (one-time migration of existing data)
+         2. CDC only                        (ongoing changes only)
+         3. Full load + CDC                 (existing data, then ongoing changes)
+     - TABLE MAPPINGS (JSON):
+         * Selection rules      -> which schemas/tables to include/exclude
+         * Transformation rules -> rename schema/table/column, add prefix/suffix,
+                                   remove column, change data type
+         * Filters              -> row-level filtering by column value
+     - TASK SETTINGS (JSON): LOB handling, parallel load, error handling,
+       logging, validation, target table preparation mode, etc.
+     - Tasks can be started, stopped, resumed, and modified (when stopped).
+
+  d) TARGET TABLE PREPARATION MODES (full load)
+       - Do nothing         : target tables already exist
+       - Drop tables on target and recreate
+       - Truncate           : keep table structure, delete data
+
+  e) OTHER FEATURES
+       - Data validation        : compares source and target row data
+                                  (adds overhead; reports mismatches)
+       - Premigration assessment: checks task for likely problems
+       - CloudWatch logs/metrics, CloudTrail for API auditing
+       - Event subscriptions via SNS
+       - Homogeneous Data Migrations: uses native DB tools (e.g. pg_dump,
+         mysqldump / logical replication) managed by DMS for same-engine moves
+       - DMS Schema Conversion: built-in, web-based schema conversion in the
+         console (newer alternative to the desktop SCT)
+
+1.3 HOW A MIGRATION FLOWS (FULL LOAD + CDC)
+-------------------------------------------
+
+     Source DB (stays online)
+          |
+          | 1) Full load: bulk copy of existing tables
+          |    (tables can be loaded in parallel)
+          v
+     +-------------------------------+
+     |      REPLICATION INSTANCE     |
+     |                               |
+     |  2) While full load runs,     |
+     |     DMS CACHES changes from   |
+     |     source transaction logs   |
+     |                               |
+     |  3) After full load, cached   |
+     |     changes are APPLIED       |
+     |                               |
+     |  4) Ongoing changes are       |
+     |     replicated continuously   |
+     +---------------+---------------+
+                     |
+                     v
+              Target DB / Data store
+                     |
+         5) Cutover: stop app, let latency reach ~0,
+            point app to target
+
+
+1.4 WHAT DMS DOES *NOT* DO (CLASSIC EXAM TRAP)
+----------------------------------------------
+- DMS creates target tables with ONLY the basics: table, columns, primary key.
+- It does NOT create secondary indexes, foreign keys, stored procedures,
+  views, triggers, functions, default values, etc.
+- For heterogeneous migrations you must convert schema using SCT (or DMS
+  Schema Conversion) FIRST, then use DMS to move data.
+- For best performance, create the target schema first, then use "Do nothing"
+  or "Truncate" mode; consider disabling FKs/triggers during full load.
+
+1.5 PERFORMANCE TIPS
+--------------------
+- Use a bigger replication instance (memory for LOB/large transactions).
+- Run parallel full load (ParallelLoad / partitioning of large tables;
+  MaxFullLoadSubTasks controls how many tables load in parallel, default 8).
+- Use multiple tasks to split tables across tasks.
+- Remove or disable secondary indexes/FKs/triggers on target during full load,
+  recreate afterwards.
+- Place the replication instance close (network-wise) to the target.
+- Use Direct Connect / VPN with enough bandwidth from on-premises.
+- LOB handling modes:
+     * Limited LOB mode : you set a max LOB size; fastest; truncates larger LOBs
+     * Full LOB mode    : migrates ALL LOBs regardless of size; slower
+     * Inline LOB mode  : small LOBs inline, large ones via lookup; compromise
+- For very large datasets with limited bandwidth:
+     SCT + Snowball Edge for the bulk, then DMS for CDC to catch up.
+
+1.6 TASK STATUSES (RECOGNITION)
+-------------------------------
+  Creating -> Ready -> Starting -> Running -> Stopping -> Stopped
+  Also: Failed, Modifying, Deleting, Failed-move. A "Running" task in CDC
+  mode keeps running until you stop it.
+
+
+================================================================================
+ 2. DMS SOURCES AND TARGETS
+================================================================================
+
+2.1 OVERVIEW DIAGRAM
+--------------------
+
+        SOURCES                                          TARGETS
+  +--------------------+                         +----------------------+
+  | On-prem / EC2 DBs  |                         | RDS (all engines)    |
+  |  Oracle            |                         | Aurora (MySQL/PG)    |
+  |  SQL Server        |                         | Redshift             |
+  |  MySQL / MariaDB   |                         | DynamoDB             |
+  |  PostgreSQL        |                         | S3                   |
+  |  MongoDB           |         +-----+         | DocumentDB           |
+  |  SAP ASE           |  -----> | DMS | ------> | Neptune              |
+  |  IBM Db2           |         +-----+         | Kinesis Data Streams |
+  |                    |                         | Kafka / Amazon MSK   |
+  | Other clouds       |                         | OpenSearch Service   |
+  |  Azure SQL / MySQL |                         | ElastiCache (Redis)  |
+  |  / PostgreSQL      |                         | MemoryDB (Redis)     |
+  |  Google Cloud SQL  |                         | Oracle / SQL Server /|
+  |                    |                         | MySQL / PG on EC2 or |
+  | AWS sources        |                         | on-premises          |
+  |  RDS, Aurora       |                         +----------------------+
+  |  DocumentDB        |
+  |  S3                |
+  +--------------------+
+
+2.2 SOURCES (KNOW THESE)
+------------------------
+  Commercial / open source databases:
+    - Oracle, Microsoft SQL Server, MySQL, MariaDB, PostgreSQL, MongoDB,
+      SAP ASE (Sybase), IBM Db2 (LUW and z/OS)
+  Cloud-managed:
+    - Amazon RDS (Oracle, SQL Server, MySQL, MariaDB, PostgreSQL)
+    - Amazon Aurora (MySQL/PostgreSQL)
+    - Amazon DocumentDB
+    - Amazon S3 (files as a source)
+    - Azure SQL Database, Azure Database for MySQL/PostgreSQL
+    - Google Cloud SQL for MySQL/PostgreSQL
+  Location: on-premises, EC2, RDS/Aurora, other clouds.
+
+2.3 TARGETS (KNOW THESE)
+------------------------
+  Relational:
+    - All RDS engines, Aurora, Oracle, SQL Server, MySQL, MariaDB, PostgreSQL,
+      SAP ASE, Db2 (on-prem/EC2)
+  Analytics / warehouse:
+    - Amazon Redshift (target only)
+  NoSQL / other:
+    - DynamoDB (target only), DocumentDB, Neptune (target only)
+  Streaming:
+    - Kinesis Data Streams (target only), Apache Kafka / Amazon MSK
+      (target only)
+  Search / cache:
+    - OpenSearch Service (target only), ElastiCache for Redis OSS,
+      MemoryDB for Redis
+  Data lake:
+    - Amazon S3 (source AND target)
+
+2.4 SOURCE-ONLY vs TARGET-ONLY (EXAM FAVORITE)
+----------------------------------------------
+  Targets ONLY (cannot be used as DMS source):
+      Redshift, DynamoDB, Kinesis Data Streams, Kafka/MSK, OpenSearch,
+      Neptune, Redis (ElastiCache/MemoryDB)
+  Both source and target:
+      S3, most relational DBs, MongoDB/DocumentDB (document DB specifics apply)
+
+2.5 TARGET-SPECIFIC BEHAVIOR (IMPORTANT FOR DATA ENGINEERS)
+-----------------------------------------------------------
+  AMAZON S3 AS TARGET
+    - Output file formats: CSV (default) or Parquet.
+    - Full-load files and CDC files are written separately.
+    - CDC files include an operation column: I (insert), U (update), D (delete)
+      so you can reconstruct changes downstream.
+    - Great for building a data lake: DMS -> S3 -> Glue Catalog -> Athena.
+    - Parquet is preferred for analytics (columnar, compressed, cheaper Athena).
+    - Needs an IAM role that DMS can assume to write to the bucket.
+    - Can partition CDC files by date folder.
+
+  AMAZON REDSHIFT AS TARGET
+    - DMS writes data to an intermediate S3 bucket, then issues COPY into
+      Redshift (that is how it loads efficiently).
+    - Needs S3 bucket + IAM role.
+    - Use batch apply for CDC to Redshift (row-by-row apply is slow).
+
+  AMAZON DYNAMODB AS TARGET
+    - Uses object mapping to map relational rows to DynamoDB items
+      (map columns to attributes, define partition/sort keys).
+    - Needs IAM role with DynamoDB write permission.
+
+  KINESIS DATA STREAMS AS TARGET
+    - Records are written as JSON (default JSON; also JSON_UNFORMATTED).
+    - Each source row/change becomes a record; partition key can be
+      configured (e.g. by schema.table or primary key).
+    - Use case: real-time analytics on DB changes
+      (DMS -> Kinesis -> Lambda / Firehose / Flink).
+
+  KAFKA / MSK AS TARGET
+    - JSON messages; topic per table or single topic; similar streaming use
+      case.
+
+  OPENSEARCH AS TARGET
+    - Index per table; good for search/log analytics on DB data.
+
+2.6 COMMON PAIRINGS / PATTERNS
+------------------------------
+  Oracle/SQL Server  -> Aurora PostgreSQL / PostgreSQL   (SCT + DMS)
+  MySQL on-prem      -> Aurora MySQL or RDS MySQL        (DMS, homogeneous)
+  Any DB             -> S3 (Parquet)                     (data lake)
+  Any DB             -> Redshift                         (data warehouse load)
+  Any DB             -> Kinesis                          (real-time streaming of changes)
+  Any DB             -> DynamoDB                         (NoSQL modernization)
+  S3                 -> RDS/Redshift etc.                (load files via DMS)
+
+  Heterogeneous migration workflow:
+
+     +---------+     +-----------+     +-----------+     +-------------+
+     | Source  | --> |   SCT     | --> | Target    | --> |  DMS moves  |
+     | Oracle  |     | converts  |     | schema    |     |  data (full |
+     | schema  |     | schema &  |     | created   |     |  load+CDC)  |
+     +---------+     | code      |     | (Aurora   |     +-------------+
+                     +-----------+     |  PG)      |
+                                       +-----------+
+
+
+================================================================================
+ 3. AWS SCHEMA CONVERSION TOOL (SCT)
+================================================================================
+
+3.1 WHAT IT IS
+--------------
+- A DESKTOP application (downloadable; Windows, macOS, Linux) that converts a
+  source database schema and code objects to a format compatible with the
+  target database.
+- Used mainly for HETEROGENEOUS migrations (different engines).
+- NOT needed for homogeneous migrations (e.g. MySQL -> MySQL; DMS or native
+  tools alone are enough).
+- SCT converts the SCHEMA and CODE; DMS moves the DATA. They are complementary.
+- SCT itself is free to download and use.
+- Newer option: DMS Schema Conversion (runs in the AWS console, no desktop
+  install). The exam may still reference SCT.
+
+3.2 WHAT IT CONVERTS
+--------------------
+  - Tables, indexes, primary/foreign keys, constraints
+  - Views
+  - Stored procedures, functions, triggers
+  - Packages (Oracle) and other database code objects
+  - Application SQL code embedded in your application source (it can scan
+    and convert SQL in application code, e.g. Java, C#)
+  - ETL scripts / jobs (e.g. converts some ETL to AWS Glue)
+
+3.3 KEY FEATURES
+----------------
+  1. ASSESSMENT REPORT
+       - Shows how much of the schema/code converts automatically and how much
+         needs manual work, with an effort estimate and action items.
+  2. AUTOMATIC CONVERSION
+       - Converts what it can; flags what it cannot.
+  3. MANUAL FIX GUIDANCE
+       - For items it cannot convert, it gives action items; you fix by hand.
+  4. DATA WAREHOUSE MIGRATION
+       - Converts DW schemas (e.g. Teradata, Oracle DW, Netezza, Vertica,
+         Greenplum, Snowflake, Azure Synapse) to Amazon Redshift.
+  5. DATA EXTRACTION AGENTS
+       - Used for large data warehouse migrations: extract data from the
+         source DW, optionally via Snowball Edge, load to S3, then into
+         Redshift (agents installed near the source).
+  6. APPLY TO TARGET
+       - Applies the converted schema directly to the target database.
+
+3.4 TYPICAL SOURCE -> TARGET EXAMPLES
+-------------------------------------
+  Oracle               -> Aurora PostgreSQL, RDS PostgreSQL, Aurora MySQL,
+                          RDS MySQL, (also Redshift for DW)
+  SQL Server           -> Aurora/RDS PostgreSQL, Aurora/RDS MySQL
+  Teradata / Netezza   -> Amazon Redshift
+  Vertica / Greenplum  -> Amazon Redshift
+  IBM Db2              -> PostgreSQL / MySQL targets
+  Hadoop (HDFS/Hive)   -> Amazon EMR / S3 based targets (some conversions)
+
+3.5 SCT WORKFLOW DIAGRAM
+------------------------
+
+   +---------------------+
+   | 1. Install SCT      |
+   |    + JDBC drivers   |
+   +----------+----------+
+              v
+   +---------------------+
+   | 2. Connect to       |
+   |    SOURCE and       |
+   |    TARGET           |
+   +----------+----------+
+              v
+   +---------------------+
+   | 3. Run ASSESSMENT   |
+   |    REPORT           |
+   +----------+----------+
+              v
+   +---------------------+
+   | 4. CONVERT schema   |
+   |    (auto)           |
+   +----------+----------+
+              v
+   +---------------------+
+   | 5. Manually fix     |
+   |    items flagged    |
+   +----------+----------+
+              v
+   +---------------------+
+   | 6. APPLY schema to  |
+   |    TARGET DB        |
+   +----------+----------+
+              v
+   +---------------------+
+   | 7. Use DMS to move  |
+   |    data (full load  |
+   |    + CDC)           |
+   +---------------------+
+
+3.6 LARGE DATA WAREHOUSE FLOW (SCT AGENTS + SNOWBALL)
+-----------------------------------------------------
+
+   On-prem DW        SCT Data         Snowball Edge        S3          Redshift
+  (Teradata, etc) -> Extraction  -->  (ship to AWS)  -->  bucket  -->  (COPY)
+                     Agents
+                       |
+                       +--> (or directly to S3 if bandwidth allows)
+
+3.7 DECISION: DO I NEED SCT?
+----------------------------
+  Same engine (homogeneous)?              -> NO SCT needed. DMS / native tools.
+  Different engine (heterogeneous)?       -> YES, use SCT (or DMS Schema
+                                             Conversion) for schema and code,
+                                             then DMS for data.
+  Migrating data warehouse to Redshift?   -> SCT (+ agents / Snowball for big
+                                             data).
+  Just need data lake files in S3?        -> No SCT; DMS directly to S3.
+
+
+================================================================================
+ 4. DMS - CONTINUOUS REPLICATION (CDC)
+================================================================================
+
+4.1 WHAT IT IS
+--------------
+- CDC (Change Data Capture): DMS reads the source database's transaction log,
+  captures INSERT/UPDATE/DELETE changes, and applies them to the target.
+- Keeps source and target in sync with low latency, enabling:
+     * Near-zero-downtime migration (replicate until cutover)
+     * Ongoing replication for analytics (OLTP -> data lake / warehouse)
+     * Database consolidation and cross-Region replication
+     * Streaming DB changes to Kinesis / Kafka
+- Migration type "CDC only" or "Full load + CDC".
+- A CDC task can run indefinitely until you stop it.
+
+4.2 CDC FLOW DIAGRAM
+--------------------
+
+   +------------------+
+   |   Application    |
+   +--------+---------+
+            | writes
+            v
+   +------------------+   transaction/redo/binlog/WAL
+   |   SOURCE DB      |-----------------------------+
+   +------------------+                             |
+                                                    v
+                                         +----------------------+
+                                         |  DMS REPLICATION     |
+                                         |  INSTANCE            |
+                                         |  - reads log         |
+                                         |  - captures changes  |
+                                         |  - applies in commit |
+                                         |    order (default)   |
+                                         +----------+-----------+
+                                                    |
+                                                    v
+                                         +----------------------+
+                                         |     TARGET           |
+                                         +----------------------+
+
+4.3 FULL LOAD + CDC TIMELINE
+----------------------------
+
+  Time ---->
+  |-------- FULL LOAD --------|--- apply cached ---|------ ONGOING CDC ------->
+  | copy existing rows        | changes made       | continuous replication
+  |                           | during full load   |
+  |<---- CDC changes are CACHED while full load runs --->|
+
+  Cutover: when CDC latency ~ 0, stop writes to source, wait for the last
+  changes to apply, switch application to target.
+
+4.4 HOW CDC IS CAPTURED PER SOURCE (PREREQUISITES - EXAM LIKELY)
+----------------------------------------------------------------
+  ORACLE
+     - Uses LogMiner (default) or Binary Reader.
+     - Database must be in ARCHIVELOG mode.
+     - Supplemental logging must be enabled (minimal; plus primary key/all
+       columns as needed).
+  MYSQL / MARIADB / AURORA MYSQL
+     - Uses the binary log (binlog).
+     - binlog_format = ROW is required.
+     - Binary logs must be retained long enough for DMS to read them
+       (for RDS, increase binlog retention hours).
+     - Automatic backups must be enabled on RDS for binlog.
+  POSTGRESQL / AURORA POSTGRESQL
+     - Uses logical replication (WAL).
+     - wal_level = logical; on RDS set rds.logical_replication = 1.
+     - Uses a logical decoding plugin (pglogical or test_decoding; pgoutput
+       also supported in newer versions).
+     - Uses a replication slot (unused slots can fill disk - clean up).
+  SQL SERVER
+     - Uses MS-Replication or MS-CDC (database must be in FULL or
+       BULK_LOGGED recovery).
+  MONGODB / DOCUMENTDB
+     - Uses the oplog (MongoDB) or change streams (DocumentDB).
+  SAP ASE / DB2
+     - Source-specific log reading configuration required.
+
+  TIP: Tables should have a PRIMARY KEY for reliable CDC. Without it, DMS
+  needs more logging (e.g. Oracle supplemental logging on all columns) and
+  UPDATE/DELETE handling can be limited.
+
+4.5 STARTING CDC AT A SPECIFIC POINT
+------------------------------------
+  - CDC start can be set by:
+      * Custom CDC start position (native log position / LSN / SCN)
+      * Custom CDC start time (timestamp)
+      * Right now (when task starts)
+  - Useful when you took a native backup/snapshot and want CDC to begin from
+    the snapshot point only.
+  - CDC stop point can also be set (stop at a time or commit) for
+    controlled cutovers.
+
+4.6 CDC APPLY MODES AND TUNING
+------------------------------
+  - TRANSACTIONAL APPLY (default): preserves commit order, safest.
+  - BATCH OPTIMIZED APPLY: groups changes into batches; much faster for
+    high volume or targets like Redshift; may relax strict transactional
+    ordering within a batch.
+  - Error handling: configurable behavior on apply conflicts (e.g. insert
+    when row exists, update when row missing).
+  - Large transactions are held in memory/disk of the replication instance
+    -> pick memory-optimized class and enough storage.
+  - Use multiple tasks to separate heavy tables from light ones.
+
+4.7 MONITORING REPLICATION LAG
+------------------------------
+  CloudWatch metrics to know:
+    - CDCLatencySource : lag between last event captured from source log
+                         and now (source-side delay)
+    - CDCLatencyTarget : lag between event commit on source and when it is
+                         applied to target (end-to-end delay)
+    - CDCIncomingChanges : changes waiting to be applied
+    - CPUUtilization, FreeableMemory, FreeStorageSpace, SwapUsage of
+      the replication instance
+  High CDCLatencyTarget with low CDCLatencySource -> target/apply bottleneck.
+  High CDCLatencySource -> source log reading problem (network, log size,
+  instance undersized).
+
+4.8 DATA VALIDATION
+-------------------
+  - Optional task feature that compares source and target data after
+    load/while CDC runs.
+  - Reports mismatched/suspended/pending tables in the task's
+    validation state (table statistics).
+  - Adds load on source and target; use when integrity is critical.
+
+4.9 CONTINUOUS REPLICATION USE CASES
+------------------------------------
+
+  (a) Near-zero-downtime migration
+        On-prem Oracle --(full load+CDC)--> Aurora PostgreSQL
+        cutover when latency ~0
+
+  (b) Operational DB -> Data lake
+        RDS/Aurora --(CDC)--> S3 (Parquet) --> Glue Catalog --> Athena
+        (use the I/U/D operation column to merge changes, e.g. with
+         Apache Hudi / Iceberg / Glue)
+
+  (c) OLTP -> Data warehouse
+        RDS --(CDC, batch apply)--> Redshift
+
+  (d) Real-time change streaming
+        DB --(CDC)--> Kinesis Data Streams --> Lambda / Firehose / Flink
+
+  (e) Consolidation
+        Many source DBs --(multiple tasks)--> one target DB
+
+  (f) Cross-Region / cross-account replication of DB data
+
+
+================================================================================
+ 5. AWS DMS - MULTI-AZ DEPLOYMENT
+================================================================================
+
+5.1 WHAT IT IS
+--------------
+- Multi-AZ applies to the DMS REPLICATION INSTANCE (not to your source or
+  target databases).
+- When you enable Multi-AZ, DMS provisions and maintains a SYNCHRONOUS STANDBY
+  replica of the replication instance in a DIFFERENT Availability Zone.
+- Purpose: HIGH AVAILABILITY and FAILOVER support for the replication
+  instance, NOT performance/scaling.
+
+5.2 DIAGRAM
+-----------
+
+            Region
+  +------------------------------------------------------------+
+  |                                                            |
+  |  AZ-A                                AZ-B                  |
+  |  +--------------------------+       +-------------------+  |
+  |  | PRIMARY replication      |  sync | STANDBY           |  |
+  |  | instance (ACTIVE)        |------>| replication       |  |
+  |  |  - runs tasks            |  repl | instance (PASSIVE)|  |
+  |  |  - stores cached changes |       |  - not serving    |  |
+  |  +-----------+--------------+       +---------+---------+  |
+  |              |                                |            |
+  |              v   (normal operation)           |            |
+  |       SOURCE ---> TARGET                      |            |
+  |                                               |            |
+  |  On failure of primary or its AZ:             |            |
+  |  -------------------------------------------->| promoted   |
+  |                                               v            |
+  |                                      becomes new PRIMARY   |
+  |                                      tasks RESUME          |
+  +------------------------------------------------------------+
+
+5.3 KEY POINTS
+--------------
+  - Failover is AUTOMATIC: if the primary replication instance fails, or its
+    AZ has an outage, DMS promotes the standby; replication tasks resume
+    (from where they left off, using the synchronously replicated state, such
+    as cached changes/checkpoints) and ongoing replication continues.
+  - Standby does NOT serve traffic and does NOT improve throughput. It is
+    only for availability.
+  - Protects against: replication instance failure, AZ outage, and also
+    helps during planned maintenance/patching of the replication instance
+    (failover to standby reduces disruption).
+  - You choose Multi-AZ when creating the replication instance
+    ("Multi-AZ deployment" option / Multi-AZ = yes).
+  - Requires a replication SUBNET GROUP that spans at least TWO AZs.
+  - COST: you pay for both instances (roughly double the instance cost) and
+    allocated storage for both.
+  - Best for production CONTINUOUS replication (long-running CDC) where
+    interruption is costly. For one-time dev/test migrations, single-AZ is
+    usually fine.
+  - Multi-AZ on the replication instance does NOT make your source or target
+    databases highly available. Use RDS/Aurora Multi-AZ for those.
+  - Endpoint/IP of the replication instance can change after failover;
+    your source/target DB network rules (security groups, allowlists) must
+    permit both AZ subnets.
+  - Data in the replication instance's storage (e.g. cached changes) is
+    synchronously replicated to the standby.
+
+5.4 SINGLE-AZ vs MULTI-AZ
+-------------------------
+
+  +--------------------+---------------------------+--------------------------+
+  |                    | SINGLE-AZ                 | MULTI-AZ                 |
+  +--------------------+---------------------------+--------------------------+
+  | Instances          | 1                         | Primary + standby        |
+  | Failure handling   | Manual recovery           | Automatic failover       |
+  | Cost               | Lower                     | Higher (about 2x)        |
+  | Use case           | Dev/test, one-time loads  | Production CDC           |
+  | Throughput benefit | None                      | None                     |
+  | Subnet group AZs   | 1+                        | 2+ required              |
+  +--------------------+---------------------------+--------------------------+
+
+5.5 MULTI-AZ EXAM TRAPS
+-----------------------
+  - "Improve migration speed" -> NOT Multi-AZ (use bigger instance, parallel
+    load, more tasks).
+  - "Make the target DB highly available" -> NOT DMS Multi-AZ.
+  - "Ensure continuous replication survives AZ failure" -> YES Multi-AZ
+    replication instance.
+
+
+================================================================================
+ 6. DMS SERVERLESS (BONUS)
+================================================================================
+- No replication instance to provision or manage.
+- DMS automatically provisions, scales up/down, and manages capacity.
+- Capacity measured in DCUs (DMS Capacity Units); you set minimum and
+  maximum DCUs (1 DCU is roughly 2 GB of memory).
+- Pay for capacity used (per DCU-hour).
+- Good for unpredictable or variable workloads and less operational overhead.
+- Supports full load and CDC; Multi-AZ option available for availability.
+- Exam pattern: "least operational overhead", "automatically scales
+  replication capacity" -> DMS Serverless.
+
+
+================================================================================
+ 7. SECURITY, NETWORKING, MONITORING
+================================================================================
+
+7.1 SECURITY
+------------
+  - Encryption at rest: replication instance storage encrypted with KMS
+    (default AWS managed key or your CMK).
+  - Encryption in transit: SSL/TLS for endpoints.
+  - IAM roles (service roles DMS needs):
+       dms-vpc-role               -> create/manage network interfaces in VPC
+       dms-cloudwatch-logs-role   -> write task logs to CloudWatch
+       Endpoint-specific roles    -> S3, Redshift, DynamoDB, Kinesis access
+  - Secrets Manager can store DB credentials for endpoints.
+  - Security groups control access between replication instance and DBs.
+  - CloudTrail logs DMS API calls.
+
+7.2 NETWORKING
+--------------
+  - Replication instance lives in your VPC (in a replication subnet group).
+  - Connect to on-premises sources via Site-to-Site VPN or Direct Connect.
+  - Cross-VPC/Region via VPC peering, Transit Gateway.
+  - Can be publicly accessible or private (private recommended).
+  - At least one endpoint must be in AWS.
+
+7.3 MONITORING
+--------------
+  - CloudWatch: replication instance metrics and task metrics
+    (latency, throughput, CPU, memory, storage).
+  - Task logs in CloudWatch Logs.
+  - Table statistics in the task (rows loaded, inserts, deletes, updates,
+    DDLs, validation state).
+  - SNS event subscriptions (task failure, instance events).
+  - Premigration assessments before starting tasks.
+
+
+================================================================================
+ 8. EXAM SCENARIOS AND DECISION TABLES
+================================================================================
+
+8.1 SCENARIO -> ANSWER
+----------------------
+
+  "Migrate on-prem Oracle to Aurora PostgreSQL with minimal downtime"
+      -> SCT (convert schema) + DMS (full load + CDC)
+
+  "Migrate on-prem MySQL to RDS MySQL with minimal downtime"
+      -> DMS (homogeneous), full load + CDC (no SCT needed)
+
+  "Continuously replicate RDS data to S3 for analytics"
+      -> DMS with S3 target (Parquet), CDC; query with Athena
+
+  "Stream database changes in real time to analytics"
+      -> DMS -> Kinesis Data Streams (or MSK)
+
+  "Load OLTP data into Redshift continuously"
+      -> DMS with Redshift target (uses S3 staging, batch apply)
+
+  "Convert stored procedures and schema between engines"
+      -> SCT (or DMS Schema Conversion)
+
+  "Migrate Teradata/Netezza data warehouse to Redshift (large)"
+      -> SCT + data extraction agents (+ Snowball Edge for huge data)
+
+  "Replication must survive an Availability Zone failure"
+      -> DMS replication instance with Multi-AZ
+
+  "Least operational overhead, variable workload"
+      -> DMS Serverless
+
+  "Migrate relational data to DynamoDB"
+      -> DMS with DynamoDB target (object mapping)
+
+  "Target tables missing indexes/foreign keys after DMS"
+      -> Expected; DMS creates only tables and primary keys. Use SCT or
+         create them manually.
+
+  "CDC from MySQL source is not capturing changes"
+      -> Check binlog enabled, binlog_format=ROW, retention adequate.
+
+  "CDC from PostgreSQL source is not working"
+      -> Check wal_level=logical (rds.logical_replication=1), replication
+         slot.
+
+  "CDC from Oracle source is not working"
+      -> Check ARCHIVELOG mode and supplemental logging.
+
+  "Task failing/slow with large LOB columns"
+      -> Use Limited LOB mode (set max size) or bigger memory instance.
+
+  "Migrate when network bandwidth is very limited and data is huge"
+      -> Snowball Edge for bulk (with SCT/DMS) then DMS CDC for delta.
+
+  "Verify data matches after migration"
+      -> DMS data validation.
+
+8.2 DMS vs OTHER MIGRATION SERVICES
+-----------------------------------
+
+  +-------------------+----------------------------------------------------+
+  | Service           | Use for                                            |
+  +-------------------+----------------------------------------------------+
+  | DMS               | Databases / data stores, full load + CDC           |
+  | SCT               | Schema + code conversion for heterogeneous moves   |
+  | MGN               | Whole servers (lift-and-shift to EC2)              |
+  | DataSync          | Files/objects (NFS, SMB, HDFS, S3, EFS, FSx)       |
+  | Snow Family       | Offline bulk transfer                              |
+  | Transfer Family   | SFTP/FTPS/FTP into S3/EFS                          |
+  | Glue              | ETL/transform after data is landed                 |
+  +-------------------+----------------------------------------------------+
+
+8.3 DMS vs NATIVE DB TOOLS vs GLUE
+----------------------------------
+  - DMS: managed, CDC, heterogeneous, minimal downtime.
+  - Native tools (pg_dump, mysqldump, Oracle Data Pump): good for
+    homogeneous one-time moves; no managed CDC.
+  - Glue: heavy transformations and ETL; DMS only does light transformations
+    (rename/remove/filter). Use DMS to land data, Glue to transform.
+
+
+================================================================================
+ 9. LAST-MINUTE CHEAT SHEET
+================================================================================
+
+  DMS
+    * Managed DB migration; source stays online; homogeneous + heterogeneous
+    * Needs replication instance (EC2) OR DMS Serverless
+    * Components: replication instance, endpoints, replication task
+    * Migration types: Full load | CDC only | Full load + CDC
+    * One endpoint must be in AWS
+    * Creates tables + primary keys ONLY (no indexes, FKs, procs, views)
+    * Transformations are light: rename, add/remove column, filter
+    * Data validation available
+    * LOB modes: Limited (fast) | Full (slow, complete) | Inline
+
+  SOURCES / TARGETS
+    * Targets-only: Redshift, DynamoDB, Kinesis, Kafka/MSK, OpenSearch,
+      Neptune, Redis
+    * S3 = source and target; target formats CSV/Parquet; CDC has I/U/D column
+    * Redshift target loads via S3 + COPY
+    * Kinesis target = JSON records
+
+  SCT
+    * Desktop tool (free); converts schema + code for HETEROGENEOUS moves
+    * Assessment report shows conversion complexity
+    * DW to Redshift with data extraction agents (+ Snowball)
+    * Not needed for same-engine moves
+    * DMS Schema Conversion = newer console-based option
+
+  CDC / CONTINUOUS REPLICATION
+    * Reads transaction logs (binlog, WAL, redo/LogMiner, oplog)
+    * MySQL: binlog_format=ROW | PostgreSQL: wal_level=logical |
+      Oracle: ARCHIVELOG + supplemental logging
+    * Cache changes during full load, apply after, then continuous
+    * Metrics: CDCLatencySource, CDCLatencyTarget
+    * Batch optimized apply for speed (esp. Redshift)
+    * Can start CDC from specific time/log position
+
+  MULTI-AZ
+    * Applies to REPLICATION INSTANCE only
+    * Synchronous standby in another AZ; automatic failover
+    * For HA, NOT performance; ~2x cost; needs 2+ AZ subnet group
+    * Does not make source/target DBs highly available
+
+  SERVERLESS
+    * Auto-scales via DCUs; least operational overhead
+
+================================================================================
+ END OF GUIDE
+================================================================================
